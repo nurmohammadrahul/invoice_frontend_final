@@ -3,20 +3,28 @@
   "builds": [
     {
       "src": "package.json",
-      "use": "@vercel/next",
-      "config": { "distDir": "build" }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/"
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
     }
   ],
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "https://invoice-backend-final.vercel.app/api/:path*"
+    },
+    {
+      "source": "/static/(.*)",
+      "destination": "/static/$1"
+    },
+    {
+      "source": "/(.*\\.(ico|png|jpg|jpeg|svg|css|js|json))",
+      "destination": "/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
