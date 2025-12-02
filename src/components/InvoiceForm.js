@@ -296,7 +296,7 @@ const InvoiceForm = ({ invoice, onBack }) => {
         alert('✅ Invoice updated successfully!');
       } else {
         response = await axios.post(
-          '${API_BASE_URL}/invoices',
+          `${API_BASE_URL}/invoices`,
           submitData,
           {
             headers: {
