@@ -9,14 +9,15 @@
       }
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "https://invoice-backend-final.vercel.app/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "https://invoice-backend-final.vercel.app/api/$1",
+      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     },
     {
-      "source": "/:path*",
-      "destination": "/index.html"
+      "src": "/(.*)",
+      "dest": "/"
     }
   ]
 }
