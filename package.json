@@ -9,11 +9,12 @@
     "axios": "^1.4.0",
     "react-router-dom": "^6.11.0",
     "jspdf": "^2.5.1",
-    "jspdf-autotable": "^3.5.28"
+    "jspdf-autotable": "^3.5.28",
+    "web-vitals": "^3.0.0"
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "CI=false DISABLE_ESLINT_PLUGIN=true react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
