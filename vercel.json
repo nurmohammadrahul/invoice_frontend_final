@@ -15,15 +15,7 @@
       "destination": "https://invoice-backend-final.vercel.app/api/:path*"
     },
     {
-      "source": "/static/(.*)",
-      "destination": "/static/$1"
-    },
-    {
-      "source": "/(.*\\.(ico|png|jpg|jpeg|svg|css|js|json))",
-      "destination": "/$1"
-    },
-    {
-      "source": "/(.*)",
+      "source": "/:path*",
       "destination": "/index.html"
     }
   ]
