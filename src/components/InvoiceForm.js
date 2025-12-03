@@ -1,9 +1,10 @@
+//InvoiceForm.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { generatePDF } from '../utils/pdfGenerator';
 import './InvoiceForm.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://invoice-backend-final.vercel.app/api';
 const InvoiceForm = ({ invoice, onBack }) => {
   const [formData, setFormData] = useState({
     invoiceNumber: '',

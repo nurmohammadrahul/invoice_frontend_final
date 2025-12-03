@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-export const generatePDF = (invoiceData) => {
+export const generatePDF = async (invoiceData) => {
   console.log('=== PDF GENERATION STARTED ===');
   console.log('Invoice Data:', invoiceData);
 
@@ -25,13 +25,8 @@ export const generatePDF = (invoiceData) => {
   doc.setFillColor(25, 55, 90);
   doc.rect(0, 0, pageWidth, 35, 'F');
 
-  // Company logo area (left side)
-  doc.setFillColor(255, 255, 255);
-  doc.circle(30, 18, 12, 'F');
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(25, 55, 90);
-  doc.text('VQS', 30, 21, { align: 'center' });
+  // Company logo with image
+  await loadAndAddLogo(doc);
 
   // Company name and tagline (center)
   doc.setTextColor(255, 255, 255);
@@ -40,7 +35,7 @@ export const generatePDF = (invoiceData) => {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(200, 220, 255);
-  doc.text('Quality Service & Business Excellence', pageWidth / 2, 26, { align: 'center' });
+  doc.text('VALUE | QUALITY | SERVICE', pageWidth / 2, 26, { align: 'center' });
 
   // =============== INVOICE HEADER (RIGHT SIDE OF COMPANY HEADER) ===============
   // Invoice number and date on the right side of the blue header
@@ -355,16 +350,16 @@ export const generatePDF = (invoiceData) => {
     doc.text(line, margin + 30, yPos + 0 + (i * 5));
   });
 
-  yPos += wrappedWords.length * 6 + 15; // Move cursor below
+  yPos += wrappedWords.length * 6 + 30; // Move cursor below
 
   // =============== SIGNATURES ===============
-  const signatureY = Math.max(yPos, calcBoxY + calcBoxHeight + 20);
+  const signatureY = Math.max(yPos, calcBoxY + calcBoxHeight + 30);
 
   // Supplier section
   doc.setFontSize(8);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(120, 120, 120);
-  doc.text('All items supplied as receiver order', margin + 55, signatureY - 13, { align: 'center' });
+  doc.text('All items supplied as receiver order', margin + 55, signatureY - 15, { align: 'center' });
 
   doc.setDrawColor(150, 150, 150);
   doc.setLineWidth(0.3);
@@ -379,7 +374,7 @@ export const generatePDF = (invoiceData) => {
   doc.setFontSize(8);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(120, 120, 120);
-  doc.text('All items received as my order', 155, signatureY - 13, { align: 'center' });
+  doc.text('All items received as my order', 155, signatureY - 15, { align: 'center' });
 
   doc.setDrawColor(150, 150, 150);
   doc.line(125, signatureY, 185, signatureY);
@@ -390,7 +385,7 @@ export const generatePDF = (invoiceData) => {
   doc.text('Customer Signature & Date', 155, signatureY + 8, { align: 'center' });
 
   // =============== FOOTER ===============
-  const footerY = signatureY + 15;
+  const footerY = signatureY + 25;
 
   // Thank you message
   doc.setFontSize(11);
@@ -485,4 +480,55 @@ const convertToWords = (num) => {
   }
 
   return words + ' Only';
+};
+
+// Function to load and add logo
+const loadAndAddLogo = async (doc) => {
+  return new Promise((resolve) => {
+    // Create image element
+    const logoImg = new Image();
+    
+    // Set CORS for external images if needed
+    logoImg.crossOrigin = 'anonymous';
+    
+    // When image loads
+    logoImg.onload = () => {
+      try {
+        // Draw white circle background (your original design)
+        doc.setFillColor(255, 255, 255);
+        doc.circle(30, 18, 12, 'F');
+        
+        // Add image centered in the circle
+        // Coordinates: x=18 (30-12), y=6 (18-12), width=24, height=24
+        doc.addImage(logoImg, 'PNG', 18, 6, 28, 28);
+        
+        console.log('Logo added successfully');
+      } catch (error) {
+        console.error('Error adding logo:', error);
+        // Fallback to text logo
+        addTextLogo(doc);
+      }
+      resolve();
+    };
+    
+    // If image fails to load
+    logoImg.onerror = () => {
+      console.warn('Logo image not found, using text fallback');
+      addTextLogo(doc);
+      resolve();
+    };
+    
+    // Start loading - adjust the path as needed
+    logoImg.src = '/VQS.jpeg'; // Logo should be in public folder
+  });
+};
+
+// Fallback function for text logo
+const addTextLogo = (doc) => {
+  doc.setFillColor(255, 255, 255);
+  doc.circle(30, 18, 12, 'F');
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(25, 55, 90);
+  doc.text('VQS', 30, 21, { align: 'center' });
 };

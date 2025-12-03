@@ -1,9 +1,11 @@
+
+//InvoiceList.js
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { generatePDF } from '../utils/pdfGenerator';
 import './InvoiceList.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ||'https://invoice-backend-final.vercel.app/api';
 const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
   const [invoices, setInvoices] = useState([]);
   const [filteredInvoices, setFilteredInvoices] = useState([]);
