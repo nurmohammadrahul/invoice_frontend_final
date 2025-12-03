@@ -1,45 +1,46 @@
-
-//InvoiceList.js
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { generatePDF } from '../utils/pdfGenerator';
 import './InvoiceList.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL ||'https://invoice-backend-final.vercel.app/api';
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://invoice-backend-final.vercel.app/api';
+
 const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
   const [invoices, setInvoices] = useState([]);
   const [filteredInvoices, setFilteredInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortConfig, setSortConfig] = useState({
-    key: 'date',
-    direction: 'descending'
-  });
+  const [updatingStatus, setUpdatingStatus] = useState({}); // Track which invoices are being updated
 
-  // Calculate invoice status based on date and payment status
+  // Enhanced status calculation that considers paymentStatus and due date
   const calculateInvoiceStatus = (invoice) => {
-    const today = new Date();
-    const dueDate = new Date(invoice.dueDate || invoice.date);
-    
-    // If invoice is marked as paid
+    // If explicitly marked as paid in database, return paid
     if (invoice.paymentStatus === 'paid') {
       return 'paid';
     }
-    
-    // If due date has passed
-    if (dueDate < today) {
-      return 'overdue';
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (invoice.dueDate) {
+      const dueDate = new Date(invoice.dueDate);
+      dueDate.setHours(23, 59, 59, 999);
+
+      // If due date has passed, mark as overdue (unless already paid)
+      if (dueDate < today) {
+        return 'overdue';
+      }
+
+      // If due date is within 3 days, mark as pending (with warning)
+      const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+      if (daysUntilDue <= 3) {
+        return 'pending'; // This will be styled as "due soon"
+      }
     }
-    
-    // If invoice is due within 3 days
-    const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-    if (daysUntilDue <= 3) {
-      return 'pending';
-    }
-    
-    // Default status
-    return invoice.status || 'pending';
+
+    // Default to payment status or pending
+    return invoice.paymentStatus || 'pending';
   };
 
   const fetchInvoices = useCallback(async () => {
@@ -50,13 +51,18 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
       const res = await axios.get(`${API_BASE_URL}/invoices`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       // Calculate status for each invoice
-      const invoicesWithStatus = res.data.map(invoice => ({
-        ...invoice,
-        calculatedStatus: calculateInvoiceStatus(invoice)
-      }));
-      
+      const invoicesWithStatus = res.data.map(invoice => {
+        const calculatedStatus = calculateInvoiceStatus(invoice);
+        return {
+          ...invoice,
+          calculatedStatus,
+          // Ensure we have a consistent paymentStatus field
+          paymentStatus: invoice.paymentStatus || 'pending'
+        };
+      });
+
       setInvoices(invoicesWithStatus);
       setFilteredInvoices(invoicesWithStatus);
     } catch (error) {
@@ -67,7 +73,6 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
     }
   }, []);
 
-  // Refresh when refreshTrigger changes or component mounts
   useEffect(() => {
     fetchInvoices();
   }, [fetchInvoices, refreshTrigger]);
@@ -95,41 +100,6 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
     setFilteredInvoices(filtered);
   };
 
-  const handleSort = (key) => {
-    let direction = 'ascending';
-    if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-      direction = 'descending';
-    }
-    
-    const sortedInvoices = [...filteredInvoices].sort((a, b) => {
-      let aValue = a[key];
-      let bValue = b[key];
-      
-      // Handle dates
-      if (key === 'date') {
-        aValue = new Date(aValue);
-        bValue = new Date(bValue);
-      }
-      
-      // Handle numbers
-      if (key === 'netTotal') {
-        aValue = aValue || 0;
-        bValue = bValue || 0;
-      }
-      
-      if (aValue < bValue) {
-        return direction === 'ascending' ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return direction === 'ascending' ? 1 : -1;
-      }
-      return 0;
-    });
-    
-    setFilteredInvoices(sortedInvoices);
-    setSortConfig({ key, direction });
-  };
-
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) {
       try {
@@ -137,7 +107,7 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
         await axios.delete(`${API_BASE_URL}/invoices/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        fetchInvoices(); // Refresh list after deletion
+        fetchInvoices();
       } catch (error) {
         console.error('Error deleting invoice:', error);
         alert('Failed to delete invoice. Please try again.');
@@ -149,24 +119,71 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
     generatePDF(invoice);
   };
 
-  const handleUpdateStatus = async (invoiceId, newStatus) => {
+  // Enhanced status update handler with proper status cycling
+  const handleUpdateStatus = async (invoiceId, currentStatus) => {
     try {
+      setUpdatingStatus(prev => ({ ...prev, [invoiceId]: true }));
+
       const token = localStorage.getItem('token');
-      await axios.patch(
+
+      // Determine next status based on current status
+      let newPaymentStatus;
+
+      switch (currentStatus) {
+        case 'paid':
+          // If currently paid, mark as pending
+          newPaymentStatus = 'pending';
+          break;
+        case 'overdue':
+          // If overdue, mark as paid (overdue bills can be paid)
+          newPaymentStatus = 'paid';
+          break;
+        case 'pending':
+        default:
+          // If pending, mark as paid
+          newPaymentStatus = 'paid';
+          break;
+      }
+
+      console.log(`Updating invoice ${invoiceId}: ${currentStatus} -> ${newPaymentStatus}`);
+
+      // Update in backend
+      const response = await axios.patch(
         `${API_BASE_URL}/invoices/${invoiceId}`,
-        { paymentStatus: newStatus },
+        { paymentStatus: newPaymentStatus },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      fetchInvoices(); // Refresh to show updated status
+
+      console.log('Backend response:', response.data);
+
+      // Update local state immediately for better UX
+      setInvoices(prevInvoices =>
+        prevInvoices.map(inv => {
+          if (inv._id === invoiceId) {
+            const updatedInvoice = {
+              ...inv,
+              paymentStatus: newPaymentStatus
+            };
+            // Recalculate status based on new payment status
+            const newCalculatedStatus = calculateInvoiceStatus(updatedInvoice);
+            return {
+              ...updatedInvoice,
+              calculatedStatus: newCalculatedStatus
+            };
+          }
+          return inv;
+        })
+      );
+
     } catch (error) {
       console.error('Error updating invoice status:', error);
-      alert('Failed to update status. Please try again.');
+      console.error('Error details:', error.response?.data || error.message);
+      alert(`Failed to update status: ${error.response?.data?.message || error.message}`);
+      // Re-fetch to ensure consistency
+      fetchInvoices();
+    } finally {
+      setUpdatingStatus(prev => ({ ...prev, [invoiceId]: false }));
     }
-  };
-
-  const getSortIcon = (key) => {
-    if (sortConfig.key !== key) return '↕️';
-    return sortConfig.direction === 'ascending' ? '↑' : '↓';
   };
 
   const clearSearch = () => {
@@ -174,7 +191,7 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
   };
 
   const getStatusColor = (status) => {
-    switch(status) {
+    switch (status) {
       case 'paid':
         return '#27ae60';
       case 'overdue':
@@ -187,7 +204,7 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
   };
 
   const getStatusText = (status) => {
-    switch(status) {
+    switch (status) {
       case 'paid':
         return 'Paid';
       case 'overdue':
@@ -200,7 +217,7 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
   };
 
   const getStatusEmoji = (status) => {
-    switch(status) {
+    switch (status) {
       case 'paid':
         return '✅';
       case 'overdue':
@@ -212,42 +229,69 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
     }
   };
 
-  const getStatusButtonStyle = (status) => {
-    switch(status) {
+  const getStatusButtonStyle = (status, isLoading) => {
+    const baseStyle = {
+      color: 'white',
+      cursor: isLoading ? 'not-allowed' : 'pointer',
+      opacity: isLoading ? 0.7 : 1,
+      transition: 'all 0.3s ease'
+    };
+
+    switch (status) {
       case 'paid':
-        return { background: 'linear-gradient(135deg, #27ae60 0%, #219653 100%)', color: 'white' };
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(135deg, #27ae60 0%, #219653 100%)'
+        };
       case 'overdue':
-        return { background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', color: 'white' };
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)'
+        };
       case 'pending':
-        return { background: 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)', color: 'white' };
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(135deg, #f39c12 0%, #e67e22 100%)'
+        };
       default:
-        return { background: 'linear-gradient(135deg, #7f8c8d 0%, #95a5a6 100%)', color: 'white' };
+        return {
+          ...baseStyle,
+          background: 'linear-gradient(135deg, #7f8c8d 0%, #95a5a6 100%)'
+        };
     }
   };
 
-  const getStatusUpdateButtonText = (currentStatus) => {
-    switch(currentStatus) {
-      case 'paid':
-        return 'Mark Pending';
-      case 'overdue':
-      case 'pending':
-        return 'Mark Paid';
-      default:
-        return 'Mark Paid';
-    }
+  const formatCurrency = (amount) => {
+    if (!amount) return '৳0.00';
+    return `৳${parseFloat(amount).toLocaleString('en-BD', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   };
 
-  const getNextStatus = (currentStatus) => {
-    switch(currentStatus) {
-      case 'paid':
-        return 'pending';
-      case 'overdue':
-      case 'pending':
-        return 'paid';
-      default:
-        return 'paid';
-    }
+  // Calculate totals by status
+  const calculateTotalsByStatus = () => {
+    const totals = {
+      pending: 0,
+      paid: 0,
+      overdue: 0,
+      all: 0
+    };
+
+    invoices.forEach(invoice => {
+      const amount = invoice.netTotal || 0;
+      const status = invoice.calculatedStatus;
+
+      if (totals[status] !== undefined) {
+        totals[status] += amount;
+      }
+      totals.all += amount;
+    });
+
+    return totals;
   };
+
+  const statusTotals = calculateTotalsByStatus();
 
   if (loading) {
     return (
@@ -269,24 +313,36 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
           <div className="stat-item">
             <span className="stat-label">Total Invoices</span>
             <span className="stat-value">{invoices.length}</span>
+            <div className="stat-amount">
+              {formatCurrency(statusTotals.all)}
+            </div>
           </div>
           <div className="stat-item">
             <span className="stat-label">Pending</span>
-            <span className="stat-value" style={{color: getStatusColor('pending')}}>
+            <span className="stat-value" style={{ color: getStatusColor('pending') }}>
               {invoices.filter(i => i.calculatedStatus === 'pending').length}
             </span>
+            <div className="stat-amount" style={{ color: getStatusColor('pending') }}>
+              {formatCurrency(statusTotals.pending)}
+            </div>
           </div>
           <div className="stat-item">
             <span className="stat-label">Paid</span>
-            <span className="stat-value" style={{color: getStatusColor('paid')}}>
+            <span className="stat-value" style={{ color: getStatusColor('paid') }}>
               {invoices.filter(i => i.calculatedStatus === 'paid').length}
             </span>
+            <div className="stat-amount" style={{ color: getStatusColor('paid') }}>
+              {formatCurrency(statusTotals.paid)}
+            </div>
           </div>
           <div className="stat-item">
             <span className="stat-label">Overdue</span>
-            <span className="stat-value" style={{color: getStatusColor('overdue')}}>
+            <span className="stat-value" style={{ color: getStatusColor('overdue') }}>
               {invoices.filter(i => i.calculatedStatus === 'overdue').length}
             </span>
+            <div className="stat-amount" style={{ color: getStatusColor('overdue') }}>
+              {formatCurrency(statusTotals.overdue)}
+            </div>
           </div>
         </div>
       </div>
@@ -340,124 +396,162 @@ const InvoiceList = ({ onEditInvoice, refreshTrigger }) => {
           )}
         </div>
       ) : (
-        <div className="table-responsive">
-          <table className="invoice-table">
-            <thead>
-              <tr>
-                <th onClick={() => handleSort('invoiceNumber')} className="sortable">
-                  Invoice # {getSortIcon('invoiceNumber')}
-                </th>
-                <th onClick={() => handleSort('date')} className="sortable">
-                  Date {getSortIcon('date')}
-                </th>
-                <th onClick={() => handleSort('customerName')} className="sortable">
-                  Customer {getSortIcon('customerName')}
-                </th>
-                <th>Phone</th>
-                <th onClick={() => handleSort('netTotal')} className="sortable">
-                  Net Total {getSortIcon('netTotal')}
-                </th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredInvoices.map((invoice) => (
-                <tr key={invoice._id} className="invoice-row">
-                  <td className="invoice-number">
-                    <strong>#{invoice.invoiceNumber}</strong>
-                  </td>
-                  <td className="invoice-date">
-                    {new Date(invoice.date).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric'
-                    })}
-                  </td>
-                  <td className="customer-info">
-                    <div className="customer-name">{invoice.customerName}</div>
-                    <div className="customer-email">{invoice.customerEmail || 'No email'}</div>
-                  </td>
-                  <td className="customer-phone">{invoice.customerPhone || 'N/A'}</td>
-                  <td className="net-total">
-                    <span className="amount">৳{invoice.netTotal?.toLocaleString()}</span>
-                  </td>
-                  <td className="action-buttons">
-                    <div className="action-group">
-                      <div className="status-display">
-                        <button
-                          className="action-btn status-btn"
-                          style={getStatusButtonStyle(invoice.calculatedStatus)}
-                          title={`Status: ${getStatusText(invoice.calculatedStatus)}\nDue: ${invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-US', {
+        <>
+          <div className="table-container">
+            <div className="table-responsive">
+              <table className="invoice-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: '25%' }}>Invoice & Date</th>
+                    <th style={{ width: '30%' }}>Customer Information</th>
+                    <th style={{ width: '20%' }}>Status & Amount</th>
+                    <th style={{ width: '25%' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvoices.map((invoice) => (
+                    <tr key={invoice._id} className="invoice-row">
+                      <td className="invoice-number-date">
+                        <div className="invoice-number-main">
+                          <strong>#{invoice.invoiceNumber}</strong>
+                        </div>
+                        <div className="invoice-date-main">
+                          <span className="date-label">Date: </span>
+                          {new Date(invoice.date).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric'
-                          }) : 'N/A'}`}
-                        >
-                          <span className="btn-icon">{getStatusEmoji(invoice.calculatedStatus)}</span>
-                          <span className="btn-text">{getStatusText(invoice.calculatedStatus)}</span>
-                        </button>
-                      </div>
-                      <div className="action-controls">
-                       
-                        <button
-                          className="action-btn pdf-btn"
-                          onClick={() => handleGeneratePDF(invoice)}
-                          title="Download PDF"
-                        >
-                          <span className="btn-icon">📄</span>
-                          <span className="btn-text">PDF</span>
-                        </button>
-                        <button
-                          className="action-btn edit-btn"
-                          onClick={() => onEditInvoice(invoice)}
-                          title="Edit Invoice"
-                        >
-                          <span className="btn-icon">✏️</span>
-                          <span className="btn-text">Edit</span>
-                        </button>
-                        <button
-                          className="action-btn delete-btn"
-                          onClick={() => handleDelete(invoice._id)}
-                          title="Delete Invoice"
-                        >
-                          <span className="btn-icon">🗑️</span>
-                          <span className="btn-text">Delete</span>
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                          })}
+                        </div>
+                        {invoice.dueDate && (
+                          <div className="invoice-due-date">
+                            <span className="due-label">Due: </span>
+                            {new Date(invoice.dueDate).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </div>
+                        )}
+                      </td>
 
-      <div className="table-footer">
-        <div className="footer-info">
-          Showing {filteredInvoices.length} of {invoices.length} invoices
-        </div>
-        <div className="footer-actions">
-          <button onClick={fetchInvoices} className="refresh-btn">
-            <span className="refresh-icon">🔄</span>
-            Refresh List
-          </button>
-          <div className="status-legend">
-            <div className="legend-item">
-              <span className="legend-color" style={{backgroundColor: getStatusColor('pending')}}></span>
-              <span>Pending</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-color" style={{backgroundColor: getStatusColor('paid')}}></span>
-              <span>Paid</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-color" style={{backgroundColor: getStatusColor('overdue')}}></span>
-              <span>Overdue</span>
+                      <td className="customer-info-combined">
+                        <div className="customer-name-main">
+                          <strong>{invoice.customerName}</strong>
+                        </div>
+                        <div className="customer-contact-details">
+                          {invoice.customerEmail && (
+                            <div className="customer-email-main">
+                              <span className="contact-icon">✉️</span>
+                              <span className="contact-text">{invoice.customerEmail}</span>
+                            </div>
+                          )}
+                          {invoice.customerPhone && (
+                            <div className="customer-phone-main">
+                              <span className="contact-icon">📱</span>
+                              <span className="contact-text">{invoice.customerPhone}</span>
+                            </div>
+                          )}
+                          {invoice.customerAddress && (
+                            <div className="customer-address-truncated" title={invoice.customerAddress}>
+                              <span className="contact-icon">📍</span>
+                              <span className="contact-text">
+                                {invoice.customerAddress.length > 50
+                                  ? `${invoice.customerAddress.substring(0, 50)}...`
+                                  : invoice.customerAddress}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="status-column">
+                        <div className="status-display-main">
+                          <button
+                            className="action-btn status-btn"
+                            style={getStatusButtonStyle(invoice.calculatedStatus, updatingStatus[invoice._id])}
+
+                            disabled={updatingStatus[invoice._id]}
+                            title={
+                              invoice.calculatedStatus === 'paid'
+                                ? 'Click to mark as Pending'
+                                : invoice.calculatedStatus === 'overdue'
+                                  ? 'Click to mark as Paid'
+                                  : 'Click to mark as Paid'
+                            }
+                          >
+                            <span className="btn-icon">
+                              {updatingStatus[invoice._id] ? '⏳' : getStatusEmoji(invoice.calculatedStatus)}
+                            </span>
+                            <span className="btn-text">
+                              {updatingStatus[invoice._id] ? 'Updating...' : getStatusText(invoice.calculatedStatus)}
+                            </span>
+                          </button>
+                        </div>
+
+                        <div className="status-amount-info">
+                          <div className="status-amount-label">Net Total:</div>
+                          <div className="status-amount-value" style={{ color: getStatusColor(invoice.calculatedStatus) }}>
+                            {formatCurrency(invoice.netTotal)}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="action-column">
+                        <div className="action-group-main">
+                          <div className="action-controls-main">
+                            <button
+                              className="action-btn pdf-btn"
+                              onClick={() => handleGeneratePDF(invoice)}
+                              title="Download PDF"
+                            >
+                              <span className="btn-icon">📄</span>
+                              <span className="btn-text">PDF</span>
+                            </button>
+                            <button
+                              className="action-btn edit-btn"
+                              onClick={() => onEditInvoice(invoice)}
+                              title="Edit Invoice"
+                            >
+                              <span className="btn-icon">✏️</span>
+                              <span className="btn-text">Edit</span>
+                            </button>
+                            <button
+                              className="action-btn delete-btn"
+                              onClick={() => handleDelete(invoice._id)}
+                              title="Delete Invoice"
+                            >
+                              <span className="btn-icon">🗑️</span>
+                              <span className="btn-text">Delete</span>
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-      </div>
+
+          <div className="table-footer">
+            <div className="footer-info">
+              Showing {filteredInvoices.length} of {invoices.length} invoices
+              {searchTerm && ` for "${searchTerm}"`}
+              <div className="total-summary">
+                Total Value: <strong>{formatCurrency(statusTotals.all)}</strong>
+              </div>
+            </div>
+            <div className="footer-actions">
+              <button onClick={fetchInvoices} className="refresh-btn">
+                <span className="refresh-icon">🔄</span>
+                Refresh List
+              </button>
+
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

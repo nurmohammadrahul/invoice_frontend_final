@@ -485,44 +485,47 @@ const convertToWords = (num) => {
 // Function to load and add logo
 const loadAndAddLogo = async (doc) => {
   return new Promise((resolve) => {
-    // Create image element
     const logoImg = new Image();
-    
-    // Set CORS for external images if needed
     logoImg.crossOrigin = 'anonymous';
     
-    // When image loads
+    // Add cache-busting parameter
+    const timestamp = new Date().getTime();
+    const logoUrl = `/VQS.jpeg?t=${timestamp}`; // or use version number
+    
     logoImg.onload = () => {
       try {
-        // Draw white circle background (your original design)
+        const circleCenterX = 30;
+        const circleCenterY = 18;
+        const circleRadius = 12;
+        const imageSize = circleRadius * 2;
+        const imageX = circleCenterX - circleRadius;
+        const imageY = circleCenterY - circleRadius;
+        
+        // Draw white circle background
         doc.setFillColor(255, 255, 255);
-        doc.circle(30, 18, 12, 'F');
+        doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
         
-        // Add image centered in the circle
-        // Coordinates: x=18 (30-12), y=6 (18-12), width=24, height=24
-        doc.addImage(logoImg, 'PNG', 18, 6, 28, 28);
+        // Add image
+        doc.addImage(logoImg, 'PNG', imageX, imageY, imageSize, imageSize);
         
-        console.log('Logo added successfully');
+      
+        console.log('Logo added successfully from:', logoUrl);
       } catch (error) {
         console.error('Error adding logo:', error);
-        // Fallback to text logo
         addTextLogo(doc);
       }
       resolve();
     };
     
-    // If image fails to load
     logoImg.onerror = () => {
-      console.warn('Logo image not found, using text fallback');
+      console.warn(`Logo not found at ${logoUrl}, using text fallback`);
       addTextLogo(doc);
       resolve();
     };
     
-    // Start loading - adjust the path as needed
-    logoImg.src = '/VQS.jpeg'; // Logo should be in public folder
+    logoImg.src = logoUrl;
   });
 };
-
 // Fallback function for text logo
 const addTextLogo = (doc) => {
   doc.setFillColor(255, 255, 255);
