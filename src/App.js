@@ -104,7 +104,7 @@ function App() {
           <h1>VQS Invoice System</h1>
           {userInfo && (
             <div className="user-info">
-              <span className="user-name">Welcome, {userInfo.name || userInfo.username}</span>
+              <span className="user-name">Welcome,{userInfo.name || userInfo.username}</span>
               <span className="user-role">({userInfo.role})</span>
             </div>
           )}

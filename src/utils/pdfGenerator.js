@@ -29,7 +29,7 @@ export const generatePDF = async (invoiceData) => {
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageWidth, 35, 'F');
 
-  // Company logo with image - SIMPLIFIED for public folder
+  // Company logo with image - SIMPLIFIED
   await loadAndAddLogo(doc);
 
   // Company name and tagline (center) - Black text
@@ -492,46 +492,36 @@ const convertToWords = (num) => {
   return words + ' Only';
 };
 
-// SIMPLIFIED LOGO LOADING FOR PUBLIC FOLDER
+// SIMPLIFIED LOGO LOADING - Just add the logo image directly
 const loadAndAddLogo = async (doc) => {
   return new Promise((resolve) => {
     try {
-      // For public folder, use direct path
-      const logoPath = '/VQS.jpeg'; // Direct path for public folder
-      
       // Create image
       const img = new Image();
-      img.crossOrigin = 'Anonymous';
+      
+      // Direct path for public folder (remove the /frontend part)
+      const logoPath = '/VQS.jpeg';
+      console.log('Loading logo from:', logoPath);
       
       img.onload = () => {
         try {
-          const circleCenterX = 30;
-          const circleCenterY = 18;
-          const circleRadius = 12;
-          const imageSize = circleRadius * 2;
-          const imageX = circleCenterX - circleRadius;
-          const imageY = circleCenterY - circleRadius;
-
-          // Draw white circle background
-          doc.setFillColor(255, 255, 255);
-          doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
-
-          // Draw black circle border
-          doc.setDrawColor(180, 180, 180);
-          doc.setLineWidth(0.5);
-          doc.circle(circleCenterX, circleCenterY, circleRadius, 'D');
-
-          // Add logo image - resizing to fit circle
+          // Logo position and size (no circle)
+          const logoWidth = 25; // mm width
+          const logoHeight = 25; // mm height (adjust based on aspect ratio)
+          const logoX = 20; // Position from left
+          const logoY = 5; // Position from top
+          
+          // Add logo image directly
           doc.addImage(
             img,
-            'JPEG',
-            imageX,
-            imageY,
-            imageSize,
-            imageSize
+            'JPEG', // or 'PNG' if your logo is PNG
+            logoX,
+            logoY,
+            logoWidth,
+            logoHeight
           );
           
-          console.log('Logo loaded successfully from public folder');
+          console.log('Logo added successfully');
           resolve();
         } catch (error) {
           console.warn('Error adding logo image, using fallback:', error);
@@ -541,22 +531,19 @@ const loadAndAddLogo = async (doc) => {
       };
 
       img.onerror = (error) => {
-        console.warn('Could not load logo image from public folder:', error);
+        console.warn('Could not load logo image:', error);
         console.log('Trying alternative paths...');
         
-        // Try alternative paths in public folder
+        // Try alternative paths
         const altPaths = [
-          '/logo.jpeg',
-          '/logo.jpg',
-          '/vqs-logo.jpeg',
-          '/vqs-logo.jpg',
-          '/VQS.jpg'
+          '/VQS.jpg',
+          `${window.location.origin}/VQS.jpeg`
         ];
         
         let currentPath = 0;
         const tryAltPath = () => {
           if (currentPath < altPaths.length) {
-            console.log(`Trying: ${altPaths[currentPath]}`);
+            console.log(`Trying alternative: ${altPaths[currentPath]}`);
             img.src = altPaths[currentPath];
             currentPath++;
           } else {
@@ -570,8 +557,7 @@ const loadAndAddLogo = async (doc) => {
         tryAltPath();
       };
 
-      // Start loading from main path
-      console.log('Loading logo from:', logoPath);
+      // Start loading
       img.src = logoPath;
       
     } catch (error) {
