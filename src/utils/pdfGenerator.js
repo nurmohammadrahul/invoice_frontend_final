@@ -506,11 +506,7 @@ const loadAndAddLogo = async (doc) => {
     // Try multiple possible logo paths
     const possiblePaths = [
       '/VQS.jpeg',
-      '/logo.jpeg',
-      '/logo.jpg',
-      '/vqs-logo.jpeg',
-      '/assets/VQS.jpeg',
-      '/images/logo.jpeg',
+      '/frontend/public/VQS.jpeg',
       `${window.location.origin}/VQS.jpeg`
     ];
 
