@@ -16,23 +16,43 @@ const Login = ({ onLogin }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [adminExists, setAdminExists] = useState(true);
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true);
 
   // Check if admin exists on component mount
   useEffect(() => {
-    checkAdminStatus();
+    checkAdminExists();
   }, []);
 
-  const checkAdminStatus = async () => {
+  const checkAdminExists = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/auth/check-admin`);
+      setIsCheckingAdmin(true);
+      console.log('🔍 Checking if admin exists...');
+      
+      const res = await axios.get(`${API_BASE_URL}/api/auth/check-admin-exists`);
+      console.log('Admin exists response:', res.data);
+      
       setAdminExists(res.data.adminExists);
       
       // If no admin exists, show registration form
       if (!res.data.adminExists) {
         setIsRegisterMode(true);
+      } else {
+        setIsRegisterMode(false);
       }
     } catch (error) {
-      console.log('Error checking admin status:', error.message);
+      console.error('❌ Error checking admin status:', error.message);
+      console.error('Full error:', error);
+      
+      // Default to showing login form if check fails
+      setAdminExists(true);
+      setIsRegisterMode(false);
+      
+      // If it's a network error, show helpful message
+      if (error.code === 'ERR_NETWORK') {
+        setError('Cannot connect to server. Please check your internet connection and ensure the backend is running.');
+      }
+    } finally {
+      setIsCheckingAdmin(false);
     }
   };
 
@@ -56,6 +76,8 @@ const Login = ({ onLogin }) => {
     setError('');
 
     try {
+      console.log('🔐 Attempting login for user:', formData.username);
+      
       const res = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         username: formData.username,
         password: formData.password
@@ -64,6 +86,8 @@ const Login = ({ onLogin }) => {
           'Content-Type': 'application/json'
         }
       });
+
+      console.log('✅ Login successful:', res.data);
 
       // Store auth data
       localStorage.setItem('token', res.data.token);
@@ -74,11 +98,34 @@ const Login = ({ onLogin }) => {
         userId: res.data.userId
       }));
 
-      console.log('✅ Login successful');
+      // Verify the token works by checking admin status
+      try {
+        const adminCheckRes = await axios.get(`${API_BASE_URL}/api/auth/check-admin`, {
+          headers: {
+            'Authorization': `Bearer ${res.data.token}`
+          }
+        });
+        console.log('✅ Admin status verified:', adminCheckRes.data);
+      } catch (verifyError) {
+        console.warn('⚠️ Could not verify admin status, but login succeeded:', verifyError.message);
+      }
+
       onLogin(res.data);
     } catch (error) {
-      setError(error.response?.data?.error || 'Login failed. Please check your credentials.');
-      console.error('❌ Login error:', error.response?.data);
+      console.error('❌ Login error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        code: error.code
+      });
+      
+      if (error.response?.status === 401 || error.response?.status === 400) {
+        setError(error.response?.data?.error || 'Invalid username or password. Please try again.');
+      } else if (error.code === 'ERR_NETWORK') {
+        setError('Cannot connect to server. Please check your internet connection.');
+      } else {
+        setError('Login failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -107,6 +154,8 @@ const Login = ({ onLogin }) => {
     setError('');
 
     try {
+      console.log('📝 Attempting admin registration for user:', formData.username);
+      
       const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
         username: formData.username,
         password: formData.password,
@@ -114,11 +163,15 @@ const Login = ({ onLogin }) => {
         email: formData.email || `${formData.username}@vqs.com`
       });
 
+      console.log('✅ Registration successful:', res.data);
+
       // Auto login after successful registration
       const loginRes = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         username: formData.username,
         password: formData.password
       });
+
+      console.log('✅ Auto-login successful:', loginRes.data);
 
       // Store auth data
       localStorage.setItem('token', loginRes.data.token);
@@ -129,15 +182,40 @@ const Login = ({ onLogin }) => {
         userId: loginRes.data.userId
       }));
 
-      console.log('✅ Registration and login successful');
       onLogin(loginRes.data);
     } catch (error) {
-      setError(error.response?.data?.error || 'Registration failed. Please try again.');
-      console.error('❌ Registration error:', error.response?.data);
+      console.error('❌ Registration error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        code: error.code
+      });
+      
+      if (error.response?.status === 400) {
+        setError(error.response?.data?.error || 'Registration failed. Please check your inputs.');
+      } else if (error.code === 'ERR_NETWORK') {
+        setError('Cannot connect to server. Please check your internet connection.');
+      } else {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Show loading state while checking admin status
+  if (isCheckingAdmin) {
+    return (
+      <div className="login-container">
+        <div className="login-card">
+          <div className="loading-state">
+            <div className="loading-spinner"></div>
+            <p>Checking system status...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-container">
@@ -149,7 +227,9 @@ const Login = ({ onLogin }) => {
           </div>
           <p className="welcome-text">
             {isRegisterMode 
-              ? 'Create Admin Account' 
+              ? adminExists 
+                ? 'Register New User' 
+                : 'Create First Admin Account'
               : 'Welcome back! Please sign in to your account.'}
           </p>
         </div>
@@ -158,6 +238,12 @@ const Login = ({ onLogin }) => {
           {error && (
             <div className="status-message error">
               ⚠️ {error}
+            </div>
+          )}
+
+          {isRegisterMode && !adminExists && (
+            <div className="info-message">
+              ℹ️ You are registering as the first administrator. Make sure to remember your credentials.
             </div>
           )}
 
@@ -175,6 +261,7 @@ const Login = ({ onLogin }) => {
               placeholder="Enter username"
               disabled={isLoading}
               required
+              autoFocus
             />
           </div>
 
@@ -182,7 +269,7 @@ const Login = ({ onLogin }) => {
             <>
               <div className="form-group">
                 <label htmlFor="name" className="form-label">
-                  Full Name
+                  Full Name (Optional)
                 </label>
                 <input
                   id="name"
@@ -198,7 +285,7 @@ const Login = ({ onLogin }) => {
 
               <div className="form-group">
                 <label htmlFor="email" className="form-label">
-                  Email
+                  Email (Optional)
                 </label>
                 <input
                   id="email"
@@ -253,7 +340,7 @@ const Login = ({ onLogin }) => {
           <button
             type="submit"
             className={`login-btn ${isLoading ? 'loading' : ''}`}
-            disabled={isLoading}
+            disabled={isLoading || isCheckingAdmin}
           >
             {isLoading ? (
               <>
@@ -261,7 +348,7 @@ const Login = ({ onLogin }) => {
                 {isRegisterMode ? 'Registering...' : 'Signing In...'}
               </>
             ) : (
-              isRegisterMode ? 'Register Admin' : 'Sign In'
+              isRegisterMode ? (adminExists ? 'Register' : 'Create Admin Account') : 'Sign In'
             )}
           </button>
 
@@ -271,29 +358,35 @@ const Login = ({ onLogin }) => {
                 Already have an account?{' '}
                 <button 
                   type="button"
-                  onClick={() => setIsRegisterMode(false)}
+                  onClick={() => {
+                    setIsRegisterMode(false);
+                    setError('');
+                  }}
                   className="switch-link"
-                  disabled={isLoading}
+                  disabled={isLoading || isCheckingAdmin}
                 >
                   Login here
                 </button>
               </p>
             ) : adminExists ? (
               <p>
-                Need to register?{' '}
+                Need to register a new user?{' '}
                 <button 
                   type="button"
-                  onClick={() => setIsRegisterMode(true)}
+                  onClick={() => {
+                    setIsRegisterMode(true);
+                    setError('');
+                  }}
                   className="switch-link"
-                  disabled={isLoading}
+                  disabled={isLoading || isCheckingAdmin}
                 >
                   Register here
                 </button>
               </p>
             ) : (
               <div className="admin-note">
-                <h4>No Admin Account Found</h4>
-                <p>Please register as the first admin user.</p>
+                <h4>⚠️ No Admin Account Found</h4>
+                <p>Please register as the first administrator.</p>
               </div>
             )}
           </div>
