@@ -5,7 +5,7 @@ export const generatePDF = async (invoiceData) => {
   console.log('=== PDF GENERATION STARTED ===');
   console.log('Invoice Data:', invoiceData);
 
-  // Create PDF document
+  // Create PDF document with white background
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -13,6 +13,9 @@ export const generatePDF = async (invoiceData) => {
     compress: true,
     putOnlyUsedFonts: true
   });
+
+  // Set default text color to black
+  doc.setTextColor(0, 0, 0);
 
   // Page dimensions
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -22,25 +25,32 @@ export const generatePDF = async (invoiceData) => {
   let yPos = margin;
 
   // =============== COMPANY HEADER ===============
-  doc.setFillColor(25, 55, 90);
-  doc.rect(0, 0, pageWidth, 35, 'F');
+  // Extra light ash background with black text
+  doc.setFillColor(248, 248, 248); // Very light ash
+  doc.rect(0, 0, pageWidth, 40, 'F');
 
-  // Company logo with image
+  // Add subtle border line
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.5);
+  doc.line(0, 40, pageWidth, 40);
+
+  // Company logo - 24x24 square
   await loadAndAddLogo(doc);
 
-  // Company name and tagline (center)
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.text('VQS', pageWidth / 2, 18, { align: 'center' });
+  // Company name and tagline (center) - Black text
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('VQS', pageWidth / 2, 20, { align: 'center' });
+  
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(200, 220, 255);
-  doc.text('VALUE | QUALITY | SERVICE', pageWidth / 2, 26, { align: 'center' });
+  doc.setTextColor(100, 100, 100); // Dark gray for tagline
+  doc.text('VALUE | QUALITY | SERVICE', pageWidth / 2, 28, { align: 'center' });
 
-  // =============== INVOICE HEADER (RIGHT SIDE OF COMPANY HEADER) ===============
-  // Invoice number and date on the right side of the blue header
+  // =============== INVOICE HEADER (RIGHT SIDE) ===============
   doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255, 0.9);
+  doc.setTextColor(0, 0, 0);
   const invoiceNumber = invoiceData.invoiceNumber || 'INV-0000';
   const invoiceDate = invoiceData.date
     ? new Date(invoiceData.date).toLocaleDateString('en-GB', {
@@ -49,48 +59,49 @@ export const generatePDF = async (invoiceData) => {
       year: 'numeric'
     })
     : new Date().toLocaleDateString('en-GB');
-  
-  // Right-aligned invoice info in the blue header
+
+  // Right-aligned invoice info
   const invoiceInfoX = pageWidth - margin - 10;
-  const invoiceInfoY = 18;
-  
-  // "INVOICE" label on the right
-  doc.setFontSize(12);
+  const invoiceInfoY = 20;
+
+  // "INVOICE" label
+  doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(0, 0, 0);
   doc.text('INVOICE', invoiceInfoX, invoiceInfoY - 8, { align: 'right' });
-  
-  // Invoice details below
+
+  // Invoice details
   doc.setFontSize(9);
-  doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(80, 80, 80);
   const invoiceDetails = [
     `Invoice No: ${invoiceNumber}`,
     `Date: ${invoiceDate}`
   ];
-  
+
   invoiceDetails.forEach((line, index) => {
     doc.text(line, invoiceInfoX, invoiceInfoY + (index * 5), { align: 'right' });
   });
 
-  yPos = 40;
+  yPos = 45;
 
   // =============== FROM/TO ADDRESSES ===============
   const columnWidth = (contentWidth - 10) / 2;
 
-  // From address
-  doc.setFillColor(248, 250, 252);
+  // From address - White background with light ash border
+  doc.setFillColor(255, 255, 255);
   doc.roundedRect(margin, yPos, columnWidth, 45, 3, 3, 'F');
   doc.setDrawColor(220, 220, 220);
   doc.roundedRect(margin, yPos, columnWidth, 45, 3, 3, 'S');
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(0, 0, 0);
   doc.text('BILL FROM', margin + 10, yPos + 8);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60);
   const fromAddress = [
     'VQS',
     '256, Old Police Quarter',
@@ -107,18 +118,19 @@ export const generatePDF = async (invoiceData) => {
 
   // To address
   const toX = margin + columnWidth + 10;
-  doc.setFillColor(248, 250, 252);
+  doc.setFillColor(255, 255, 255);
   doc.roundedRect(toX, yPos, columnWidth, 45, 3, 3, 'F');
   doc.setDrawColor(220, 220, 220);
   doc.roundedRect(toX, yPos, columnWidth, 45, 3, 3, 'S');
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(0, 0, 0);
   doc.text('BILL TO', toX + 10, yPos + 8);
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60);
   doc.text(invoiceData.customerName || 'Customer Name', toX + 10, yPos + 13);
 
   const customerAddress = invoiceData.customerAddress || 'Address not provided';
@@ -158,7 +170,7 @@ export const generatePDF = async (invoiceData) => {
     ];
   });
 
-  // Use autoTable function
+  // Use autoTable function with ash/white theme
   autoTable(doc, {
     startY: yPos,
     head: [['#', 'PRODUCT', 'UNIT', 'QUANTITY', 'PRICE', 'AMOUNT']],
@@ -168,27 +180,32 @@ export const generatePDF = async (invoiceData) => {
       fontSize: 9,
       cellPadding: 4,
       overflow: 'linebreak',
-      lineColor: [220, 220, 220],
-      lineWidth: 0.1
+      lineColor: [220, 220, 220], // Light ash lines
+      lineWidth: 0.3,
+      textColor: [0, 0, 0], // Black text
+      fontStyle: 'normal',
+      fillColor: [255, 255, 255] // White background
     },
     headStyles: {
-      fillColor: [41, 128, 185],
-      textColor: [255, 255, 255],
+      fillColor: [248, 248, 248], // Light ash header
+      textColor: [0, 0, 0], // Black text
       fontStyle: 'bold',
       fontSize: 9,
       cellPadding: 4,
-      halign: 'center'
+      halign: 'center',
+      lineWidth: 0.3,
+      lineColor: [220, 220, 220]
     },
     alternateRowStyles: {
-      fillColor: [250, 252, 255]
+      fillColor: [252, 252, 252] // Very light ash for alternate rows
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' }, // #
-      1: { cellWidth: 55, halign: 'left' },   // Description
-      2: { cellWidth: 20, halign: 'center' }, // Unit
-      3: { cellWidth: 25, halign: 'center' }, // Qty
-      4: { cellWidth: 35, halign: 'right' },  // Price
-      5: { cellWidth: 35, halign: 'right' }   // Amount
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 55, halign: 'left' },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 25, halign: 'center' },
+      4: { cellWidth: 35, halign: 'right' },
+      5: { cellWidth: 35, halign: 'right' }
     },
     theme: 'grid',
   });
@@ -198,7 +215,7 @@ export const generatePDF = async (invoiceData) => {
   yPos = finalY + 1;
 
   // =============== CALCULATIONS ===============
-  // Values (no change)
+  // Values
   const subtotal = parseFloat(invoiceData.subtotal) || items.reduce((sum, item) => sum + parseFloat(item.total || 0), 0);
   const serviceChargeAmount = parseFloat(invoiceData.serviceChargeAmount) || parseFloat(invoiceData.serviceCharge?.amount) || 0;
   const vatAmount = parseFloat(invoiceData.vatAmount) || parseFloat(invoiceData.vat?.amount) || 0;
@@ -206,7 +223,7 @@ export const generatePDF = async (invoiceData) => {
   const grandTotal = parseFloat(invoiceData.grandTotal) || (subtotal + serviceChargeAmount + vatAmount);
   const netTotal = parseFloat(invoiceData.netTotal) || (grandTotal - discount);
 
-  // =============== DUE DATE & STATUS (LEFT SIDE OF CALCULATION BOX) ===============
+  // =============== DUE DATE & STATUS ===============
   // Box size and positioning
   const calcBoxWidth = 80;
   const calcBoxX = pageWidth - margin - calcBoxWidth;
@@ -219,7 +236,7 @@ export const generatePDF = async (invoiceData) => {
   // Due Date
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(80, 80, 80);
+  doc.setTextColor(0, 0, 0);
   
   const dueDateText = invoiceData.dueDate
     ? `Due Date: ${new Date(invoiceData.dueDate).toLocaleDateString('en-GB', {
@@ -234,15 +251,17 @@ export const generatePDF = async (invoiceData) => {
   // Status
   const status = invoiceData.paymentStatus || 'PENDING';
   let statusColor;
+  let statusTextColor = [255, 255, 255];
+  
   switch (status.toUpperCase()) {
     case 'PAID':
-      statusColor = [46, 204, 113];
+      statusColor = [100, 100, 100]; // Ash
       break;
     case 'OVERDUE':
-      statusColor = [230, 126, 34];
+      statusColor = [60, 60, 60]; // Dark ash
       break;
     default:
-      statusColor = [231, 76, 60];
+      statusColor = [80, 80, 80]; // Medium ash
   }
   
   // Status badge
@@ -256,7 +275,7 @@ export const generatePDF = async (invoiceData) => {
   
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(...statusTextColor);
   doc.text(status.toUpperCase(), statusX + statusWidth/2, statusY + 5, { align: 'center' });
 
   // Rows list
@@ -295,7 +314,7 @@ export const generatePDF = async (invoiceData) => {
   const boxPadding = 10;
   const calcBoxHeight = calcRows.length * rowHeight + boxPadding;
 
-  // Draw box
+  // Draw box with ash border
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(220, 220, 220);
   doc.roundedRect(calcBoxX, calcBoxY, calcBoxWidth, calcBoxHeight, 3, 3, 'FD');
@@ -308,14 +327,16 @@ export const generatePDF = async (invoiceData) => {
 
     if (row.style === 'bold') {
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(50, 50, 50);
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(220, 220, 220);
       doc.line(calcBoxX + 5, calcY - 3, calcBoxX + calcBoxWidth - 5, calcY - 3);
     } else if (row.style === 'discount') {
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(200, 50, 50);
+      doc.setTextColor(200, 0, 0); // Red for discount
     } else if (row.style === 'total') {
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(25, 55, 90);
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(220, 220, 220);
       doc.line(calcBoxX + 5, calcY - 5, calcBoxX + calcBoxWidth - 5, calcY - 5);
     } else {
       doc.setFont('helvetica', 'normal');
@@ -333,24 +354,24 @@ export const generatePDF = async (invoiceData) => {
     calcY += rowHeight;
   });
 
-  // ======= AMOUNT IN WORDS OUTSIDE BOX =======
+  // ======= AMOUNT IN WORDS =======
   const words = convertToWords(netTotal);
 
-  yPos = calcBoxY + calcBoxHeight + 3; // spacing after box
+  yPos = calcBoxY + calcBoxHeight + 3;
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(55, 55, 55);
+  doc.setTextColor(0, 0, 0);
   doc.text("Amount in Words:", margin, yPos);
 
   const wrappedWords = doc.splitTextToSize(words, pageWidth - margin * 2);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
+  doc.setTextColor(60, 60, 60);
   wrappedWords.forEach((line, i) => {
     doc.text(line, margin + 30, yPos + 0 + (i * 5));
   });
 
-  yPos += wrappedWords.length * 6 + 30; // Move cursor below
+  yPos += wrappedWords.length * 6 + 30;
 
   // =============== SIGNATURES ===============
   const signatureY = Math.max(yPos, calcBoxY + calcBoxHeight + 30);
@@ -358,53 +379,53 @@ export const generatePDF = async (invoiceData) => {
   // Supplier section
   doc.setFontSize(8);
   doc.setFont('helvetica', 'italic');
-  doc.setTextColor(120, 120, 120);
+  doc.setTextColor(100, 100, 100);
   doc.text('All items supplied as receiver order', margin + 55, signatureY - 15, { align: 'center' });
 
-  doc.setDrawColor(150, 150, 150);
+  doc.setDrawColor(180, 180, 180);
   doc.setLineWidth(0.3);
   doc.line(margin + 25, signatureY, margin + 85, signatureY);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(0, 0, 0);
   doc.text('Supplier Signature', margin + 55, signatureY + 8, { align: 'center' });
 
   // Customer section
   doc.setFontSize(8);
   doc.setFont('helvetica', 'italic');
-  doc.setTextColor(120, 120, 120);
+  doc.setTextColor(100, 100, 100);
   doc.text('All items received as my order', 155, signatureY - 15, { align: 'center' });
 
-  doc.setDrawColor(150, 150, 150);
+  doc.setDrawColor(180, 180, 180);
   doc.line(125, signatureY, 185, signatureY);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(0, 0, 0);
   doc.text('Customer Signature & Date', 155, signatureY + 8, { align: 'center' });
-
-  // =============== FOOTER ===============
-  const footerY = signatureY + 25;
-
-  // Thank you message
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(41, 128, 185);
-  doc.text('Thank you for your business!', pageWidth / 2, footerY, { align: 'center' });
-
-  // Bottom border
-  doc.setDrawColor(41, 128, 185);
-  doc.setLineWidth(0.3);
-  doc.line(margin, footerY + 3, pageWidth - margin, footerY + 3);
 
   // =============== WATERMARK ===============
   doc.setFontSize(60);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(230, 150, 100);
-  doc.setGState(new doc.GState({ opacity: 0.1 }));
+  doc.setTextColor(240, 240, 240); // Very light ash
+  doc.setGState(new doc.GState({ opacity: 0.07 }));
   doc.text('VQS', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
   doc.setGState(new doc.GState({ opacity: 1 }));
+
+  // =============== THANK YOU MESSAGE AT END OF PAGE ===============
+  const thankYouY = pageHeight - 15; // Very end of page
+  
+  // Add separator line
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.5);
+  doc.line(margin, thankYouY - 8, pageWidth - margin, thankYouY - 8);
+  
+  // Thank you message
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(80, 80, 80);
+  doc.text('Thank you for your business with us!', pageWidth / 2, thankYouY, { align: 'center' });
 
   // =============== SAVE PDF ===============
   const fileName = `Invoice_${invoiceData.invoiceNumber || 'VQS'}_${new Date().toISOString().slice(0, 10)}.pdf`;
@@ -482,56 +503,81 @@ const convertToWords = (num) => {
   return words + ' Only';
 };
 
-// Function to load and add logo
+// Function to load and add logo - 24x24 square, no circle
 const loadAndAddLogo = async (doc) => {
   return new Promise((resolve) => {
-    const logoImg = new Image();
-    logoImg.crossOrigin = 'anonymous';
-    
-    // Add cache-busting parameter
-    const timestamp = new Date().getTime();
-    const logoUrl = `/VQS.jpeg?t=${timestamp}`; // or use version number
-    
-    logoImg.onload = () => {
-      try {
-        const circleCenterX = 30;
-        const circleCenterY = 18;
-        const circleRadius = 12;
-        const imageSize = circleRadius * 2;
-        const imageX = circleCenterX - circleRadius;
-        const imageY = circleCenterY - circleRadius;
-        
-        // Draw white circle background
-        doc.setFillColor(255, 255, 255);
-        doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
-        
-        // Add image
-        doc.addImage(logoImg, 'PNG', imageX, imageY, imageSize, imageSize);
-        
+    try {
+      const img = new Image();
       
-        console.log('Logo added successfully from:', logoUrl);
-      } catch (error) {
-        console.error('Error adding logo:', error);
-        addTextLogo(doc);
-      }
+      // Try multiple possible logo paths
+      const logoPath = '/VQS.jpeg';
+      console.log('Loading logo from:', logoPath);
+      
+      img.onload = () => {
+        try {
+          // Logo position and size - 24x24 mm square
+          const logoWidth = 24; // mm
+          const logoHeight = 24; // mm
+          const logoX = 18; // Position from left
+          const logoY = 8; // Position from top
+          
+          // Add logo image directly as square
+          doc.addImage(
+            img,
+            'JPEG', // or 'PNG' if your logo is PNG
+            logoX,
+            logoY,
+            logoWidth,
+            logoHeight
+          );
+          
+          console.log('Logo added successfully as 24x24 square');
+          resolve();
+        } catch (error) {
+          console.warn('Error adding logo image:', error);
+          // No text fallback - just resolve
+          resolve();
+        }
+      };
+
+      img.onerror = (error) => {
+        console.warn('Could not load logo image:', error);
+        console.log('Trying alternative paths...');
+        
+        // Try alternative paths
+        const altPaths = [
+          '/logo.jpeg',
+          '/logo.jpg',
+          '/vqs-logo.jpeg',
+          '/vqs-logo.jpg',
+          '/VQS.jpg',
+          `${window.location.origin}/VQS.jpeg`
+        ];
+        
+        let currentPath = 0;
+        const tryAltPath = () => {
+          if (currentPath < altPaths.length) {
+            console.log(`Trying alternative: ${altPaths[currentPath]}`);
+            img.src = altPaths[currentPath];
+            currentPath++;
+          } else {
+            console.warn('No logo found');
+            // No text fallback - just resolve
+            resolve();
+          }
+        };
+        
+        img.onerror = tryAltPath;
+        tryAltPath();
+      };
+
+      // Start loading
+      img.src = logoPath;
+      
+    } catch (error) {
+      console.warn('Error in logo loading:', error);
+      // No text fallback - just resolve
       resolve();
-    };
-    
-    logoImg.onerror = () => {
-      console.warn(`Logo not found at ${logoUrl}, using text fallback`);
-      addTextLogo(doc);
-      resolve();
-    };
-    
-    logoImg.src = logoUrl;
+    }
   });
-};
-// Fallback function for text logo
-const addTextLogo = (doc) => {
-  doc.setFillColor(255, 255, 255);
-  doc.circle(30, 18, 12, 'F');
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(25, 55, 90);
-  doc.text('VQS', 30, 21, { align: 'center' });
 };
