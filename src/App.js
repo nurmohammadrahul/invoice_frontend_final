@@ -6,6 +6,8 @@ import InvoiceForm from './components/InvoiceForm';
 import ChangePassword from './components/ChangePassword';
 import './App.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://invoice-backend-final.vercel.app';
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState('list');
@@ -13,6 +15,7 @@ function App() {
   const [showRegister, setShowRegister] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Check if user is already logged in
   useEffect(() => {
@@ -23,6 +26,7 @@ function App() {
       setIsAuthenticated(true);
       setUserInfo(JSON.parse(userData));
     }
+    setIsLoading(false);
   }, []);
 
   const handleLogin = (userData) => {
@@ -36,7 +40,6 @@ function App() {
   };
 
   const handleRegister = (userData) => {
-    // After registration, automatically login
     handleLogin(userData);
   };
 
@@ -63,7 +66,6 @@ function App() {
   const handleBackToList = () => {
     setCurrentView('list');
     setSelectedInvoice(null);
-    // Trigger refresh of invoice list
     setRefreshTrigger(prev => prev + 1);
   };
 
@@ -72,7 +74,15 @@ function App() {
     setCurrentView('list');
   };
 
-  // If not authenticated, show login/register
+  if (isLoading) {
+    return (
+      <div className="loading-fullscreen">
+        <div className="spinner"></div>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
     return showRegister ? (
       <Register 
@@ -89,7 +99,6 @@ function App() {
 
   return (
     <div className="App">
-      {/* Header */}
       <header className="app-header">
         <div className="header-left">
           <h1>VQS Invoice System</h1>
@@ -113,7 +122,6 @@ function App() {
         </div>
       </header>
       
-      {/* Navigation */}
       <nav className="app-nav">
         <button 
           onClick={() => setCurrentView('list')} 
@@ -129,7 +137,6 @@ function App() {
         </button>
       </nav>
 
-      {/* Main Content */}
       <main className="app-main">
         {currentView === 'list' && (
           <InvoiceList 
@@ -152,12 +159,6 @@ function App() {
           />
         )}
       </main>
-
-      {/* Footer */}
-      <footer className="app-footer">
-        <p>© {new Date().getFullYear()} VQS Invoice System. All rights reserved.</p>
-        <p className="footer-version">Version 1.0.0</p>
-      </footer>
     </div>
   );
 }
