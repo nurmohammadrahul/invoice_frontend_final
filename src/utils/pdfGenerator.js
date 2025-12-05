@@ -22,7 +22,7 @@ export const generatePDF = async (invoiceData) => {
   let yPos = margin;
 
   // =============== COMPANY HEADER ===============
-  doc.setFillColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.rect(0, 0, pageWidth, 35, 'F');
 
   // Company logo with image
@@ -38,7 +38,7 @@ export const generatePDF = async (invoiceData) => {
   doc.text('VALUE | QUALITY | SERVICE', pageWidth / 2, 26, { align: 'center' });
 
   // =============== INVOICE HEADER (RIGHT SIDE OF COMPANY HEADER) ===============
-  // Invoice number and date on the right side of the ash header
+  // Invoice number and date on the right side of the gray header
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255, 0.9);
   const invoiceNumber = invoiceData.invoiceNumber || 'INV-0000';
@@ -49,17 +49,17 @@ export const generatePDF = async (invoiceData) => {
       year: 'numeric'
     })
     : new Date().toLocaleDateString('en-GB');
-  
-  // Right-aligned invoice info in the ash header
+
+  // Right-aligned invoice info in the gray header
   const invoiceInfoX = pageWidth - margin - 10;
   const invoiceInfoY = 18;
-  
+
   // "INVOICE" label on the right
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
   doc.text('INVOICE', invoiceInfoX, invoiceInfoY - 8, { align: 'right' });
-  
+
   // Invoice details below
   doc.setFontSize(9);
   doc.setTextColor(255, 255, 255);
@@ -68,7 +68,7 @@ export const generatePDF = async (invoiceData) => {
     `Invoice No: ${invoiceNumber}`,
     `Date: ${invoiceDate}`
   ];
-  
+
   invoiceDetails.forEach((line, index) => {
     doc.text(line, invoiceInfoX, invoiceInfoY + (index * 5), { align: 'right' });
   });
@@ -86,7 +86,7 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.text('BILL FROM', margin + 10, yPos + 8);
 
   doc.setFontSize(9);
@@ -114,7 +114,7 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.text('BILL TO', toX + 10, yPos + 8);
 
   doc.setFontSize(9);
@@ -172,7 +172,7 @@ export const generatePDF = async (invoiceData) => {
       lineWidth: 0.1
     },
     headStyles: {
-      fillColor: [96, 96, 96], // Changed to extra light ash
+      fillColor: [220, 220, 220],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 9,
@@ -211,16 +211,16 @@ export const generatePDF = async (invoiceData) => {
   const calcBoxWidth = 80;
   const calcBoxX = pageWidth - margin - calcBoxWidth;
   const calcBoxY = yPos;
-  
+
   // Create space on left for due date and status
   const leftInfoX = margin;
   const leftInfoY = calcBoxY + 5;
-  
+
   // Due Date
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
-  
+  doc.setTextColor(220, 220, 220);
+
   const dueDateText = invoiceData.dueDate
     ? `Due Date: ${new Date(invoiceData.dueDate).toLocaleDateString('en-GB', {
       day: '2-digit',
@@ -228,36 +228,36 @@ export const generatePDF = async (invoiceData) => {
       year: 'numeric'
     })}`
     : 'Due Date: Upon Receipt';
-  
+
   doc.text(dueDateText, leftInfoX, leftInfoY);
-  
+
   // Status
   const status = invoiceData.paymentStatus || 'PENDING';
   let statusColor;
   switch (status.toUpperCase()) {
     case 'PAID':
-      statusColor = [96, 96, 96]; // Changed to extra light ash
+      statusColor = [220, 220, 220];
       break;
     case 'OVERDUE':
-      statusColor = [96, 96, 96]; // Changed to extra light ash
+      statusColor = [220, 220, 220];
       break;
     default:
-      statusColor = [96, 96, 96]; // Changed to extra light ash
+      statusColor = [220, 220, 220];
   }
-  
+
   // Status badge
   const statusWidth = 30;
   const statusHeight = 8;
   const statusX = leftInfoX;
   const statusY = leftInfoY + 6;
-  
+
   doc.setFillColor(...statusColor);
   doc.roundedRect(statusX, statusY, statusWidth, statusHeight, 4, 4, 'F');
-  
+
   doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text(status.toUpperCase(), statusX + statusWidth/2, statusY + 5, { align: 'center' });
+  doc.text(status.toUpperCase(), statusX + statusWidth / 2, statusY + 5, { align: 'center' });
 
   // Rows list
   const calcRows = [
@@ -308,18 +308,18 @@ export const generatePDF = async (invoiceData) => {
 
     if (row.style === 'bold') {
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(96, 96, 96); // Changed to extra light ash
+      doc.setTextColor(220, 220, 220);
       doc.line(calcBoxX + 5, calcY - 3, calcBoxX + calcBoxWidth - 5, calcY - 3);
     } else if (row.style === 'discount') {
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(96, 96, 96); // Changed to extra light ash
+      doc.setTextColor(220, 220, 220);
     } else if (row.style === 'total') {
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(96, 96, 96); // Changed to extra light ash
+      doc.setTextColor(220, 220, 220);
       doc.line(calcBoxX + 5, calcY - 5, calcBoxX + calcBoxWidth - 5, calcY - 5);
     } else {
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(96, 96, 96); // Changed to extra light ash
+      doc.setTextColor(220, 220, 220);
     }
 
     doc.text(row.label, calcBoxX + 6, calcY);
@@ -340,12 +340,12 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.text("Amount in Words:", margin, yPos);
 
   const wrappedWords = doc.splitTextToSize(words, pageWidth - margin * 2);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   wrappedWords.forEach((line, i) => {
     doc.text(line, margin + 30, yPos + 0 + (i * 5));
   });
@@ -367,7 +367,7 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.text('Supplier Signature', margin + 55, signatureY + 8, { align: 'center' });
 
   // Customer section
@@ -381,8 +381,9 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.text('Customer Signature & Date', 155, signatureY + 8, { align: 'center' });
+
 
   // =============== WATERMARK ===============
   doc.setFontSize(60);
@@ -396,7 +397,7 @@ export const generatePDF = async (invoiceData) => {
   const thankYouY = pageHeight - 20;
   doc.setFontSize(11);
   doc.setFont('helvetica', 'italic');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.text('Thank you for your business with us!', pageWidth / 2, thankYouY, { align: 'center' });
 
   // =============== SAVE PDF ===============
@@ -480,11 +481,11 @@ const loadAndAddLogo = async (doc) => {
   return new Promise((resolve) => {
     const logoImg = new Image();
     logoImg.crossOrigin = 'anonymous';
-    
+
     // Add cache-busting parameter
     const timestamp = new Date().getTime();
     const logoUrl = `/VQS.jpeg?t=${timestamp}`; // or use version number
-    
+
     logoImg.onload = () => {
       try {
         const circleCenterX = 30;
@@ -493,14 +494,14 @@ const loadAndAddLogo = async (doc) => {
         const imageSize = circleRadius * 2;
         const imageX = circleCenterX - circleRadius;
         const imageY = circleCenterY - circleRadius;
-        
+
         // Draw white circle background
         doc.setFillColor(255, 255, 255);
         doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
-        
+
         // Add image
         doc.addImage(logoImg, 'PNG', imageX, imageY, imageSize, imageSize);
-        
+
         console.log('Logo added successfully from:', logoUrl);
       } catch (error) {
         console.error('Error adding logo:', error);
@@ -508,13 +509,13 @@ const loadAndAddLogo = async (doc) => {
       }
       resolve();
     };
-    
+
     logoImg.onerror = () => {
       console.warn(`Logo not found at ${logoUrl}, using text fallback`);
       addTextLogo(doc);
       resolve();
     };
-    
+
     logoImg.src = logoUrl;
   });
 };
@@ -525,6 +526,6 @@ const addTextLogo = (doc) => {
   doc.circle(30, 18, 12, 'F');
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(96, 96, 96); // Changed to extra light ash
+  doc.setTextColor(220, 220, 220);
   doc.text('VQS', 30, 21, { align: 'center' });
 };
