@@ -1,4 +1,3 @@
-//InvoiceForm.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { generatePDF } from '../utils/pdfGenerator';
@@ -24,6 +23,53 @@ const InvoiceForm = ({ invoice, onBack }) => {
 
   const [showPDFPreview, setShowPDFPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGeneratingInvoiceNumber, setIsGeneratingInvoiceNumber] = useState(false);
+
+  // Function to fetch invoice count and generate invoice number
+  const generateInvoiceNumber = async () => {
+    try {
+      setIsGeneratingInvoiceNumber(true);
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        console.warn('No token found, using temporary invoice number');
+        return `INV-${new Date().getFullYear()}-TEMP`;
+      }
+
+      // Fetch invoices to get count
+      const response = await axios.get(`${API_BASE_URL}/invoices`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      // Get the count of invoices
+      const invoiceCount = response.data.length || 0;
+      
+      // Generate invoice number: INV-YYYY-NNN
+      // Where NNN is the invoice count + 1 (padded to 3 digits)
+      const year = new Date().getFullYear();
+      const nextInvoiceNumber = invoiceCount + 1;
+      const paddedNumber = nextInvoiceNumber.toString().padStart(3, '0');
+      const invoiceNumber = `INV-${year}-${paddedNumber}`;
+      
+      console.log(`Generated invoice number: ${invoiceNumber} (based on ${invoiceCount} existing invoices)`);
+      
+      return invoiceNumber;
+    } catch (error) {
+      console.error('Error fetching invoice count:', error);
+      
+      // Fallback: Use timestamp-based invoice number
+      const year = new Date().getFullYear();
+      const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
+      const day = new Date().getDate().toString().padStart(2, '0');
+      const timestamp = Date.now().toString().slice(-4);
+      
+      return `INV-${year}${month}${day}-${timestamp}`;
+    } finally {
+      setIsGeneratingInvoiceNumber(false);
+    }
+  };
 
   useEffect(() => {
     const initializeFormData = async () => {
@@ -47,19 +93,32 @@ const InvoiceForm = ({ invoice, onBack }) => {
           notes: invoice.notes || ''
         });
       } else {
-        // Generate new invoice number
-        const invoiceNumber = 'INV-' + new Date().getFullYear() + '-' + Math.random().toString(26).substr(2, 5).toUpperCase();
-        setFormData(prev => ({
-          ...prev,
-          invoiceNumber,
-          date: new Date().toISOString().split('T')[0],
-          dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        }));
+        // Generate new invoice number based on database count
+        const loadInvoiceNumber = async () => {
+          const invoiceNumber = await generateInvoiceNumber();
+          setFormData(prev => ({
+            ...prev,
+            invoiceNumber,
+            date: new Date().toISOString().split('T')[0],
+            dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          }));
+        };
+        
+        loadInvoiceNumber();
       }
     };
 
     initializeFormData();
   }, [invoice]);
+
+  // Function to refresh invoice number (if needed)
+  const refreshInvoiceNumber = async () => {
+    const newInvoiceNumber = await generateInvoiceNumber();
+    setFormData(prev => ({
+      ...prev,
+      invoiceNumber: newInvoiceNumber
+    }));
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -85,58 +144,6 @@ const InvoiceForm = ({ invoice, onBack }) => {
     } else {
       updatedItems[index][field] = value;
     }
-
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
-
-  // New function to increment price by 1
-  const incrementPrice = (index) => {
-    const updatedItems = [...formData.items];
-    const currentPrice = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].price = currentPrice + 1;
-
-    // Recalculate total
-    const quantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].total = quantity * updatedItems[index].price;
-
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
-
-  // New function to decrement price by 1
-  const decrementPrice = (index) => {
-    const updatedItems = [...formData.items];
-    const currentPrice = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].price = Math.max(0, currentPrice - 1);
-
-    // Recalculate total
-    const quantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].total = quantity * updatedItems[index].price;
-
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
-
-  // New function to increment quantity by 1
-  const incrementQuantity = (index) => {
-    const updatedItems = [...formData.items];
-    const currentQuantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].quantity = currentQuantity + 1;
-
-    // Recalculate total
-    const price = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].total = updatedItems[index].quantity * price;
-
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
-
-  // New function to decrement quantity by 1
-  const decrementQuantity = (index) => {
-    const updatedItems = [...formData.items];
-    const currentQuantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].quantity = Math.max(0, currentQuantity - 1);
-
-    // Recalculate total
-    const price = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].total = updatedItems[index].quantity * price;
 
     setFormData(prev => ({ ...prev, items: updatedItems }));
   };
@@ -397,8 +404,22 @@ const InvoiceForm = ({ invoice, onBack }) => {
           <div className="invoice-preview">
             <div className="preview-badge">
               <span className="badge-label">Invoice #</span>
-              <span className="badge-value">{formData.invoiceNumber}</span>
+              <span className="badge-value">
+                {formData.invoiceNumber}
+                {isGeneratingInvoiceNumber && <span className="generating-text"> (generating...)</span>}
+              </span>
             </div>
+            {!invoice && (
+              <button 
+                type="button" 
+                onClick={refreshInvoiceNumber}
+                className="refresh-invoice-btn"
+                title="Generate new invoice number"
+                disabled={isGeneratingInvoiceNumber}
+              >
+                🔄
+              </button>
+            )}
           </div>
         </div>
         <button onClick={onBack} className="back-btn">
@@ -422,17 +443,23 @@ const InvoiceForm = ({ invoice, onBack }) => {
               <div className="form-group">
                 <label className="form-label">
                   Invoice Number *
-                  <span className="label-hint">Unique identifier</span>
+                  <span className="label-hint">Auto-generated</span>
                 </label>
-                <input
-                  type="text"
-                  name="invoiceNumber"
-                  value={formData.invoiceNumber}
-                  onChange={handleInputChange}
-                  required
-                  className="form-input"
-                  placeholder="INV-2024-001"
-                />
+                <div className="invoice-number-display">
+                  <input
+                    type="text"
+                    name="invoiceNumber"
+                    value={formData.invoiceNumber}
+                    onChange={handleInputChange}
+                    required
+                    className="form-input"
+                    placeholder="INV-2024-001"
+                    readOnly={!invoice} // Only editable when editing existing invoice
+                  />
+                  {!invoice && isGeneratingInvoiceNumber && (
+                    <div className="invoice-number-loading">Loading...</div>
+                  )}
+                </div>
               </div>
 
               <div className="form-group">
@@ -603,7 +630,6 @@ const InvoiceForm = ({ invoice, onBack }) => {
                       </td>
                       <td>
                         <div className="quantity-control">
-                       
                           <input
                             type="number"
                             value={item.quantity}
@@ -613,12 +639,10 @@ const InvoiceForm = ({ invoice, onBack }) => {
                             className="table-input number-input"
                             required
                           />
-                        
                         </div>
                       </td>
                       <td>
                         <div className="price-control">
-
                           <div className="price-input-container">
                             <span className="currency-symbol">৳</span>
                             <input
@@ -826,7 +850,7 @@ const InvoiceForm = ({ invoice, onBack }) => {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isGeneratingInvoiceNumber}
               >
                 {isSubmitting ? (
                   <>
