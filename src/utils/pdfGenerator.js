@@ -581,22 +581,3 @@ const loadAndAddLogo = async (doc) => {
     }
   });
 };
-
-// Fallback function for text logo
-const addTextLogo = (doc) => {
-  const circleCenterX = 30;
-  const circleCenterY = 18;
-  const circleRadius = 12;
-  
-  // Draw circle with border
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(180, 180, 180);
-  doc.setLineWidth(0.5);
-  doc.circle(circleCenterX, circleCenterY, circleRadius, 'FD');
-  
-  // Add VQS text in circle
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(60, 60, 60);
-  doc.text('VQS', circleCenterX, circleCenterY + 2, { align: 'center' });
-};
