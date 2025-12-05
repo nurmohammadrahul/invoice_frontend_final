@@ -29,13 +29,8 @@ export const generatePDF = async (invoiceData) => {
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, pageWidth, 35, 'F');
 
-  // Company logo with image
-  try {
-    await loadAndAddLogo(doc);
-  } catch (error) {
-    console.warn('Logo failed to load, using fallback:', error);
-    addTextLogo(doc);
-  }
+  // Company logo with image - SIMPLIFIED for public folder
+  await loadAndAddLogo(doc);
 
   // Company name and tagline (center) - Black text
   doc.setTextColor(0, 0, 0);
@@ -497,80 +492,93 @@ const convertToWords = (num) => {
   return words + ' Only';
 };
 
-// Function to load and add logo
+// SIMPLIFIED LOGO LOADING FOR PUBLIC FOLDER
 const loadAndAddLogo = async (doc) => {
-  return new Promise((resolve, reject) => {
-    const logoImg = new Image();
-    logoImg.crossOrigin = 'anonymous';
+  return new Promise((resolve) => {
+    try {
+      // For public folder, use direct path
+      const logoPath = '/VQS.jpeg'; // Direct path for public folder
+      
+      // Create image
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      
+      img.onload = () => {
+        try {
+          const circleCenterX = 30;
+          const circleCenterY = 18;
+          const circleRadius = 12;
+          const imageSize = circleRadius * 2;
+          const imageX = circleCenterX - circleRadius;
+          const imageY = circleCenterY - circleRadius;
 
-    // Try multiple possible logo paths
-    const possiblePaths = [
-      '/VQS.jpeg',
-      '/frontend/public/VQS.jpeg',
-      `${window.location.origin}/VQS.jpeg`
-    ];
+          // Draw white circle background
+          doc.setFillColor(255, 255, 255);
+          doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
 
-    let currentPathIndex = 0;
+          // Draw black circle border
+          doc.setDrawColor(180, 180, 180);
+          doc.setLineWidth(0.5);
+          doc.circle(circleCenterX, circleCenterY, circleRadius, 'D');
 
-    const tryNextPath = () => {
-      if (currentPathIndex >= possiblePaths.length) {
-        reject(new Error('Logo not found in any path'));
-        return;
-      }
+          // Add logo image - resizing to fit circle
+          doc.addImage(
+            img,
+            'JPEG',
+            imageX,
+            imageY,
+            imageSize,
+            imageSize
+          );
+          
+          console.log('Logo loaded successfully from public folder');
+          resolve();
+        } catch (error) {
+          console.warn('Error adding logo image, using fallback:', error);
+          addTextLogo(doc);
+          resolve();
+        }
+      };
 
-      const logoUrl = possiblePaths[currentPathIndex];
-      console.log(`Trying to load logo from: ${logoUrl}`);
-      logoImg.src = logoUrl;
-
-      currentPathIndex++;
-    };
-
-    logoImg.onload = () => {
-      try {
-        console.log(`Logo loaded successfully from: ${logoImg.src}`);
-        const circleCenterX = 30;
-        const circleCenterY = 18;
-        const circleRadius = 12;
-        const imageSize = circleRadius * 2;
-        const imageX = circleCenterX - circleRadius;
-        const imageY = circleCenterY - circleRadius;
-
-        // Draw white circle background
-        doc.setFillColor(255, 255, 255);
-        doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
-
-        // Add image with clipping for circle
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = imageSize;
-        canvas.height = imageSize;
+      img.onerror = (error) => {
+        console.warn('Could not load logo image from public folder:', error);
+        console.log('Trying alternative paths...');
         
-        // Create circular mask
-        ctx.beginPath();
-        ctx.arc(circleRadius, circleRadius, circleRadius, 0, Math.PI * 2);
-        ctx.closePath();
-        ctx.clip();
+        // Try alternative paths in public folder
+        const altPaths = [
+          '/logo.jpeg',
+          '/logo.jpg',
+          '/vqs-logo.jpeg',
+          '/vqs-logo.jpg',
+          '/VQS.jpg'
+        ];
         
-        // Draw image
-        ctx.drawImage(logoImg, 0, 0, imageSize, imageSize);
+        let currentPath = 0;
+        const tryAltPath = () => {
+          if (currentPath < altPaths.length) {
+            console.log(`Trying: ${altPaths[currentPath]}`);
+            img.src = altPaths[currentPath];
+            currentPath++;
+          } else {
+            console.warn('No logo found, using text fallback');
+            addTextLogo(doc);
+            resolve();
+          }
+        };
         
-        // Add to PDF
-        doc.addImage(canvas.toDataURL('image/png'), 'PNG', imageX, imageY, imageSize, imageSize);
-        
-        resolve();
-      } catch (error) {
-        console.error('Error adding logo:', error);
-        reject(error);
-      }
-    };
+        img.onerror = tryAltPath;
+        tryAltPath();
+      };
 
-    logoImg.onerror = () => {
-      console.warn(`Logo not found at current path, trying next...`);
-      tryNextPath();
-    };
-
-    // Start trying paths
-    tryNextPath();
+      // Start loading from main path
+      console.log('Loading logo from:', logoPath);
+      img.src = logoPath;
+      
+    } catch (error) {
+      console.warn('Error in logo loading, using fallback:', error);
+      addTextLogo(doc);
+      resolve();
+    }
   });
 };
 
