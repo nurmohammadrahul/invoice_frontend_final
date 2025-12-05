@@ -1,924 +1,598 @@
-//InvoiceForm.js
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { generatePDF } from '../utils/pdfGenerator';
-import './InvoiceForm.css';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://invoice-backend-final.vercel.app/api';
-const InvoiceForm = ({ invoice, onBack }) => {
-  const [formData, setFormData] = useState({
-    invoiceNumber: '',
-    date: new Date().toISOString().split('T')[0],
-    dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    customerName: '',
-    customerEmail: '',
-    customerAddress: '',
-    customerPhone: '',
-    paymentStatus: 'pending',
-    items: [{ srNo: 1, productName: '', measurement: 'CFT', quantity: 0, price: 0, total: 0 }],
-    serviceCharge: { amount: 0, type: 'fixed', value: 0 },
-    vat: { amount: 0, type: 'fixed', value: 0 },
-    specialDiscount: 0,
-    notes: ''
+export const generatePDF = async (invoiceData) => {
+  console.log('=== PDF GENERATION STARTED ===');
+  console.log('Invoice Data:', invoiceData);
+
+  // Create PDF document with white background
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+    compress: true,
+    putOnlyUsedFonts: true
   });
 
-  const [showPDFPreview, setShowPDFPreview] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Set default text color to black
+  doc.setTextColor(0, 0, 0);
 
-  useEffect(() => {
-    const initializeFormData = async () => {
-      if (invoice && invoice._id) {
-        console.log('Editing invoice:', invoice);
+  // Page dimensions
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  const contentWidth = pageWidth - (margin * 2);
+  let yPos = margin;
 
-        // Make sure to include all fields including customerEmail
-        setFormData({
-          invoiceNumber: invoice.invoiceNumber || '',
-          date: invoice.date ? new Date(invoice.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          dueDate: invoice.dueDate ? new Date(invoice.dueDate).toISOString().split('T')[0] : new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          customerName: invoice.customerName || '',
-          customerEmail: invoice.customerEmail || '', // Fixed: Initialize email field
-          customerAddress: invoice.customerAddress || '',
-          customerPhone: invoice.customerPhone || '',
-          paymentStatus: invoice.paymentStatus || 'pending',
-          items: invoice.items || [{ srNo: 1, productName: '', measurement: 'CFT', quantity: 0, price: 0, total: 0 }],
-          serviceCharge: invoice.serviceCharge || { amount: 0, type: 'fixed', value: 0 },
-          vat: invoice.vat || { amount: 0, type: 'fixed', value: 0 },
-          specialDiscount: invoice.specialDiscount || 0,
-          notes: invoice.notes || ''
-        });
-      } else {
-        // Generate new invoice number
-        const invoiceNumber = 'INV-' + new Date().getFullYear() + '-' + Math.random().toString(26).substr(2, 5).toUpperCase();
-        setFormData(prev => ({
-          ...prev,
-          invoiceNumber,
-          date: new Date().toISOString().split('T')[0],
-          dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        }));
-      }
-    };
+  // =============== COMPANY HEADER ===============
+  // White background with dark text
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, pageWidth, 35, 'F');
 
-    initializeFormData();
-  }, [invoice]);
+  // Company logo with image
+  try {
+    await loadAndAddLogo(doc);
+  } catch (error) {
+    console.warn('Logo failed to load, using fallback:', error);
+    addTextLogo(doc);
+  }
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
+  // Company name and tagline (center) - Black text
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('VQS', pageWidth / 2, 18, { align: 'center' });
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60); // Dark gray for tagline
+  doc.text('VALUE | QUALITY | SERVICE', pageWidth / 2, 26, { align: 'center' });
 
-  const handleItemChange = (index, field, value) => {
-    const updatedItems = [...formData.items];
+  // Add separator line below header
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 35, pageWidth - margin, 35);
 
-    // For quantity and price, ensure they increment/decrement by 1
-    if (field === 'quantity' || field === 'price') {
-      const numValue = parseFloat(value);
-      // Ensure the value changes by at least 1 or remains as entered
-      updatedItems[index][field] = isNaN(numValue) ? 0 : numValue;
+  // =============== INVOICE HEADER (RIGHT SIDE) ===============
+  doc.setFontSize(10);
+  doc.setTextColor(0, 0, 0);
+  const invoiceNumber = invoiceData.invoiceNumber || 'INV-0000';
+  const invoiceDate = invoiceData.date
+    ? new Date(invoiceData.date).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+    : new Date().toLocaleDateString('en-GB');
 
-      // Recalculate total
-      const quantity = parseFloat(updatedItems[index].quantity) || 0;
-      const price = parseFloat(updatedItems[index].price) || 0;
-      updatedItems[index].total = quantity * price;
+  // Right-aligned invoice info
+  const invoiceInfoX = pageWidth - margin - 10;
+  const invoiceInfoY = 18;
+
+  // "INVOICE" label
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text('INVOICE', invoiceInfoX, invoiceInfoY - 8, { align: 'right' });
+
+  // Invoice details
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  const invoiceDetails = [
+    `Invoice No: ${invoiceNumber}`,
+    `Date: ${invoiceDate}`
+  ];
+
+  invoiceDetails.forEach((line, index) => {
+    doc.text(line, invoiceInfoX, invoiceInfoY + (index * 5), { align: 'right' });
+  });
+
+  yPos = 40;
+
+  // =============== FROM/TO ADDRESSES ===============
+  const columnWidth = (contentWidth - 10) / 2;
+
+  // From address - Light gray background
+  doc.setFillColor(250, 250, 250);
+  doc.roundedRect(margin, yPos, columnWidth, 45, 3, 3, 'F');
+  doc.setDrawColor(180, 180, 180);
+  doc.roundedRect(margin, yPos, columnWidth, 45, 3, 3, 'S');
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(60, 60, 60); // Dark gray
+  doc.text('BILL FROM', margin + 10, yPos + 8);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0); // Black
+  const fromAddress = [
+    'VQS',
+    '256, Old Police Quarter',
+    'Shahid Shahidullah Kayser Sarak',
+    'Link Shahid Wayez Uddin Road',
+    'Feni City, Feni-3900, Bangladesh',
+    'Cell Phone: 01842956166',
+    'Email: tipucbc@gmail.com'
+  ];
+
+  fromAddress.forEach((line, index) => {
+    doc.text(line, margin + 10, yPos + 13 + (index * 4));
+  });
+
+  // To address
+  const toX = margin + columnWidth + 10;
+  doc.setFillColor(250, 250, 250);
+  doc.roundedRect(toX, yPos, columnWidth, 45, 3, 3, 'F');
+  doc.setDrawColor(180, 180, 180);
+  doc.roundedRect(toX, yPos, columnWidth, 45, 3, 3, 'S');
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(60, 60, 60);
+  doc.text('BILL TO', toX + 10, yPos + 8);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(0, 0, 0);
+  doc.text(invoiceData.customerName || 'Customer Name', toX + 10, yPos + 13);
+
+  const customerAddress = invoiceData.customerAddress || 'Address not provided';
+  const addressLines = doc.splitTextToSize(customerAddress, 70);
+  addressLines.forEach((line, index) => {
+    doc.text(line, toX + 10, yPos + 20 + (index * 3.8));
+  });
+
+  const addressHeight = addressLines.length * 3.8;
+  const infoY = yPos + 18 + addressHeight + 2;
+
+  if (invoiceData.customerPhone) {
+    doc.text(`Phone: ${invoiceData.customerPhone}`, toX + 10, infoY);
+  }
+  if (invoiceData.customerEmail) {
+    doc.text(`Email: ${invoiceData.customerEmail}`, toX + 10, infoY + 4);
+  }
+
+  yPos += 46;
+
+  // =============== ITEMS TABLE ===============
+  const items = invoiceData.items || [];
+
+  // Prepare table data
+  const tableData = items.map((item, index) => {
+    const quantity = parseFloat(item.quantity || 0);
+    const price = parseFloat(item.price || 0);
+    const total = parseFloat(item.total || 0);
+
+    return [
+      index + 1,
+      item.productName || 'Product',
+      item.measurement || 'PCS',
+      quantity.toLocaleString('en-BD'),
+      `TK ${price.toLocaleString('en-BD', { minimumFractionDigits: 2 })}`,
+      `TK ${total.toLocaleString('en-BD', { minimumFractionDigits: 2 })}`
+    ];
+  });
+
+  // Use autoTable function
+  autoTable(doc, {
+    startY: yPos,
+    head: [['#', 'PRODUCT', 'UNIT', 'QUANTITY', 'PRICE', 'AMOUNT']],
+    body: tableData,
+    margin: { left: margin, right: margin },
+    styles: {
+      fontSize: 9,
+      cellPadding: 4,
+      overflow: 'linebreak',
+      lineColor: [180, 180, 180], // Darker gray lines
+      lineWidth: 0.3,
+      textColor: [0, 0, 0], // Black text
+      fontStyle: 'normal'
+    },
+    headStyles: {
+      fillColor: [60, 60, 60], // Dark gray header
+      textColor: [255, 255, 255], // White text in header
+      fontStyle: 'bold',
+      fontSize: 9,
+      cellPadding: 4,
+      halign: 'center'
+    },
+    alternateRowStyles: {
+      fillColor: [245, 245, 245] // Light gray alternate rows
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 55, halign: 'left' },
+      2: { cellWidth: 20, halign: 'center' },
+      3: { cellWidth: 25, halign: 'center' },
+      4: { cellWidth: 35, halign: 'right' },
+      5: { cellWidth: 35, halign: 'right' }
+    },
+    theme: 'grid',
+  });
+
+  // Get the Y position after the table
+  const finalY = doc.lastAutoTable ? doc.lastAutoTable.finalY : yPos + 10;
+  yPos = finalY + 1;
+
+  // =============== CALCULATIONS ===============
+  // Values
+  const subtotal = parseFloat(invoiceData.subtotal) || items.reduce((sum, item) => sum + parseFloat(item.total || 0), 0);
+  const serviceChargeAmount = parseFloat(invoiceData.serviceChargeAmount) || parseFloat(invoiceData.serviceCharge?.amount) || 0;
+  const vatAmount = parseFloat(invoiceData.vatAmount) || parseFloat(invoiceData.vat?.amount) || 0;
+  const discount = parseFloat(invoiceData.specialDiscount) || 0;
+  const grandTotal = parseFloat(invoiceData.grandTotal) || (subtotal + serviceChargeAmount + vatAmount);
+  const netTotal = parseFloat(invoiceData.netTotal) || (grandTotal - discount);
+
+  // =============== DUE DATE & STATUS (LEFT SIDE OF CALCULATION BOX) ===============
+  // Box size and positioning
+  const calcBoxWidth = 80;
+  const calcBoxX = pageWidth - margin - calcBoxWidth;
+  const calcBoxY = yPos;
+
+  // Create space on left for due date and status
+  const leftInfoX = margin;
+  const leftInfoY = calcBoxY + 5;
+
+  // Due Date
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0); // Black
+
+  const dueDateText = invoiceData.dueDate
+    ? `Due Date: ${new Date(invoiceData.dueDate).toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })}`
+    : 'Due Date: Upon Receipt';
+
+  doc.text(dueDateText, leftInfoX, leftInfoY);
+
+  // Status
+  const status = invoiceData.paymentStatus || 'PENDING';
+  let statusColor;
+  let statusTextColor = [255, 255, 255]; // White text
+  
+  switch (status.toUpperCase()) {
+    case 'PAID':
+      statusColor = [76, 175, 80]; // Green
+      break;
+    case 'OVERDUE':
+      statusColor = [244, 67, 54]; // Red
+      break;
+    default:
+      statusColor = [255, 193, 7]; // Yellow
+      statusTextColor = [0, 0, 0]; // Black text for yellow background
+  }
+
+  // Status badge
+  const statusWidth = 30;
+  const statusHeight = 8;
+  const statusX = leftInfoX;
+  const statusY = leftInfoY + 6;
+
+  doc.setFillColor(...statusColor);
+  doc.roundedRect(statusX, statusY, statusWidth, statusHeight, 4, 4, 'F');
+
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...statusTextColor);
+  doc.text(status.toUpperCase(), statusX + statusWidth / 2, statusY + 5, { align: 'center' });
+
+  // Rows list
+  const calcRows = [
+    { label: 'Subtotal', value: subtotal, style: 'normal' },
+  ];
+
+  if (serviceChargeAmount > 0) calcRows.push({
+    label: invoiceData.serviceCharge?.type === 'percentage'
+      ? `Service Charge (${invoiceData.serviceCharge.value}%)`
+      : 'Service Charge',
+    value: serviceChargeAmount,
+    style: 'normal'
+  });
+
+  if (vatAmount > 0) calcRows.push({
+    label: invoiceData.vat?.type === 'percentage'
+      ? `VAT (${invoiceData.vat.value}%)`
+      : 'VAT',
+    value: vatAmount,
+    style: 'normal'
+  });
+
+  calcRows.push({ label: 'Grand Total', value: grandTotal, style: 'bold' });
+
+  if (discount > 0) calcRows.push({
+    label: 'Special Discount',
+    value: -discount,
+    style: 'discount'
+  });
+
+  calcRows.push({ label: 'NET TOTAL', value: netTotal, style: 'total' });
+
+  // ======= AUTO HEIGHT LOGIC =======
+  const rowHeight = 6;
+  const boxPadding = 10;
+  const calcBoxHeight = calcRows.length * rowHeight + boxPadding;
+
+  // Draw box with border
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(180, 180, 180);
+  doc.roundedRect(calcBoxX, calcBoxY, calcBoxWidth, calcBoxHeight, 3, 3, 'FD');
+
+  // ======= RENDER ROWS =======
+  let calcY = calcBoxY + 7;
+
+  calcRows.forEach(row => {
+    doc.setFontSize(row.style === 'total' ? 11 : 9);
+
+    if (row.style === 'bold') {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(180, 180, 180);
+      doc.line(calcBoxX + 5, calcY - 3, calcBoxX + calcBoxWidth - 5, calcY - 3);
+    } else if (row.style === 'discount') {
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(244, 67, 54); // Red for discount
+    } else if (row.style === 'total') {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.setDrawColor(180, 180, 180);
+      doc.line(calcBoxX + 5, calcY - 5, calcBoxX + calcBoxWidth - 5, calcY - 5);
     } else {
-      updatedItems[index][field] = value;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
     }
 
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
+    doc.text(row.label, calcBoxX + 6, calcY);
+    doc.text(
+      `Tk ${Math.abs(row.value).toLocaleString('en-BD', { minimumFractionDigits: 2 })}`,
+      calcBoxX + calcBoxWidth - 6,
+      calcY,
+      { align: 'right' }
+    );
 
-  // New function to increment price by 1
-  const incrementPrice = (index) => {
-    const updatedItems = [...formData.items];
-    const currentPrice = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].price = currentPrice + 1;
+    calcY += rowHeight;
+  });
 
-    // Recalculate total
-    const quantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].total = quantity * updatedItems[index].price;
+  // ======= AMOUNT IN WORDS =======
+  const words = convertToWords(netTotal);
 
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
+  yPos = calcBoxY + calcBoxHeight + 3;
 
-  // New function to decrement price by 1
-  const decrementPrice = (index) => {
-    const updatedItems = [...formData.items];
-    const currentPrice = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].price = Math.max(0, currentPrice - 1);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text("Amount in Words:", margin, yPos);
 
-    // Recalculate total
-    const quantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].total = quantity * updatedItems[index].price;
+  const wrappedWords = doc.splitTextToSize(words, pageWidth - margin * 2);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60); // Dark gray for words
+  wrappedWords.forEach((line, i) => {
+    doc.text(line, margin + 30, yPos + 0 + (i * 5));
+  });
 
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
+  yPos += wrappedWords.length * 6 + 30;
 
-  // New function to increment quantity by 1
-  const incrementQuantity = (index) => {
-    const updatedItems = [...formData.items];
-    const currentQuantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].quantity = currentQuantity + 1;
+  // =============== SIGNATURES ===============
+  const signatureY = Math.max(yPos, calcBoxY + calcBoxHeight + 30);
 
-    // Recalculate total
-    const price = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].total = updatedItems[index].quantity * price;
+  // Supplier section
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 100, 100); // Dark gray
+  doc.text('All items supplied as receiver order', margin + 55, signatureY - 15, { align: 'center' });
 
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
+  doc.setDrawColor(150, 150, 150);
+  doc.setLineWidth(0.3);
+  doc.line(margin + 25, signatureY, margin + 85, signatureY);
 
-  // New function to decrement quantity by 1
-  const decrementQuantity = (index) => {
-    const updatedItems = [...formData.items];
-    const currentQuantity = parseFloat(updatedItems[index].quantity) || 0;
-    updatedItems[index].quantity = Math.max(0, currentQuantity - 1);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text('Supplier Signature', margin + 55, signatureY + 8, { align: 'center' });
 
-    // Recalculate total
-    const price = parseFloat(updatedItems[index].price) || 0;
-    updatedItems[index].total = updatedItems[index].quantity * price;
+  // Customer section
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(100, 100, 100);
+  doc.text('All items received as my order', 155, signatureY - 15, { align: 'center' });
 
-    setFormData(prev => ({ ...prev, items: updatedItems }));
-  };
+  doc.setDrawColor(150, 150, 150);
+  doc.line(125, signatureY, 185, signatureY);
 
-  const addItem = () => {
-    setFormData(prev => ({
-      ...prev,
-      items: [
-        ...prev.items,
-        {
-          srNo: prev.items.length + 1,
-          productName: '',
-          measurement: 'CFT',
-          quantity: 0,
-          price: 0,
-          total: 0
-        }
-      ]
-    }));
-  };
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0);
+  doc.text('Customer Signature & Date', 155, signatureY + 8, { align: 'center' });
 
-  const removeItem = (index) => {
-    if (formData.items.length > 1) {
-      const updatedItems = formData.items.filter((_, i) => i !== index)
-        .map((item, i) => ({ ...item, srNo: i + 1 }));
-      setFormData(prev => ({ ...prev, items: updatedItems }));
+  // =============== WATERMARK ===============
+  doc.setFontSize(60);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(230, 230, 230); // Very light gray
+  doc.setGState(new doc.GState({ opacity: 0.1 }));
+  doc.text('VQS', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
+  doc.setGState(new doc.GState({ opacity: 1 }));
+
+  // =============== THANK YOU MESSAGE ===============
+  const thankYouY = pageHeight - 20;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(60, 60, 60); // Dark gray
+  doc.text('Thank you for your business with us!', pageWidth / 2, thankYouY, { align: 'center' });
+
+  // =============== SAVE PDF ===============
+  const fileName = `Invoice_${invoiceData.invoiceNumber || 'VQS'}_${new Date().toISOString().slice(0, 10)}.pdf`;
+  doc.save(fileName);
+
+  console.log('=== PDF GENERATION COMPLETED ===');
+};
+
+// Enhanced number to words function
+const convertToWords = (num) => {
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  const convertBelow1000 = (n) => {
+    if (n < 10) return ones[n];
+    if (n < 20) return teens[n - 10];
+    if (n < 100) {
+      const ten = Math.floor(n / 10);
+      const unit = n % 10;
+      return tens[ten] + (unit > 0 ? ' ' + ones[unit] : '');
     }
+    const hundred = Math.floor(n / 100);
+    const remainder = n % 100;
+    return ones[hundred] + ' Hundred' + (remainder > 0 ? ' ' + convertBelow1000(remainder) : '');
   };
 
-  const handleChargeChange = (chargeType, field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [chargeType]: {
-        ...prev[chargeType],
-        [field]: value
-      }
-    }));
-  };
+  const convert = (n) => {
+    if (n === 0) return 'Zero';
 
-  const validateEmail = (email) => {
-    if (!email) return true; // Email is optional, so empty is valid
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
-  };
+    let result = '';
 
-  const calculateTotals = () => {
-    const subtotal = formData.items.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
-
-    let serviceChargeAmount = 0;
-    if (formData.serviceCharge.type === 'percentage') {
-      serviceChargeAmount = (subtotal * parseFloat(formData.serviceCharge.value || 0)) / 100;
-    } else {
-      serviceChargeAmount = parseFloat(formData.serviceCharge.value || 0);
-    }
-
-    let vatAmount = 0;
-    if (formData.vat.type === 'percentage') {
-      vatAmount = (subtotal * parseFloat(formData.vat.value || 0)) / 100;
-    } else {
-      vatAmount = parseFloat(formData.vat.value || 0);
-    }
-
-    const grandTotal = subtotal + serviceChargeAmount + vatAmount;
-    const netTotal = grandTotal - (parseFloat(formData.specialDiscount) || 0);
-
-    return {
-      subtotal,
-      serviceChargeAmount,
-      vatAmount,
-      grandTotal,
-      netTotal
-    };
-  };
-
-  const prepareSubmitData = (totals) => {
-    return {
-      invoiceNumber: formData.invoiceNumber,
-      date: new Date(formData.date).toISOString(),
-      dueDate: new Date(formData.dueDate).toISOString(),
-      customerName: formData.customerName,
-      customerEmail: formData.customerEmail || '',
-      customerAddress: formData.customerAddress || '',
-      customerPhone: formData.customerPhone || '',
-      paymentStatus: formData.paymentStatus,
-      items: formData.items.map(item => ({
-        srNo: item.srNo,
-        productName: item.productName,
-        measurement: item.measurement,
-        quantity: parseFloat(item.quantity) || 0,
-        price: parseFloat(item.price) || 0,
-        total: parseFloat(item.total) || 0
-      })),
-      serviceCharge: {
-        type: formData.serviceCharge.type,
-        value: parseFloat(formData.serviceCharge.value) || 0,
-        amount: totals.serviceChargeAmount
-      },
-      vat: {
-        type: formData.vat.type,
-        value: parseFloat(formData.vat.value) || 0,
-        amount: totals.vatAmount
-      },
-      specialDiscount: parseFloat(formData.specialDiscount) || 0,
-      subtotal: totals.subtotal,
-      grandTotal: totals.grandTotal,
-      netTotal: totals.netTotal,
-      notes: formData.notes || ''
-    };
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    // Validate required fields
-    if (!formData.customerName || !formData.invoiceNumber) {
-      alert('Please fill in Customer Name and Invoice Number');
-      return;
+    // Crore
+    if (n >= 10000000) {
+      const crore = Math.floor(n / 10000000);
+      result += convert(crore) + ' Crore';
+      n %= 10000000;
+      if (n > 0) result += ' ';
     }
 
-    // Validate email format
-    if (!validateEmail(formData.customerEmail)) {
-      alert('Please enter a valid email address or leave it empty');
-      return;
+    // Lakh
+    if (n >= 100000) {
+      const lakh = Math.floor(n / 100000);
+      result += convertBelow1000(lakh) + ' Lakh';
+      n %= 100000;
+      if (n > 0) result += ' ';
     }
 
-    // Validate items
-    const invalidItems = formData.items.filter(item => !item.productName || item.quantity <= 0 || item.price <= 0);
-    if (invalidItems.length > 0) {
-      alert('Please fill in all item fields with valid values (Product Name, Quantity > 0, Price > 0)');
-      return;
+    // Thousand
+    if (n >= 1000) {
+      const thousand = Math.floor(n / 1000);
+      result += convertBelow1000(thousand) + ' Thousand';
+      n %= 1000;
+      if (n > 0) result += ' ';
     }
 
-    setIsSubmitting(true);
-    const totals = calculateTotals();
-    const submitData = prepareSubmitData(totals);
+    // Below thousand
+    if (n > 0) {
+      result += convertBelow1000(n);
+    }
 
-    console.log('Submitting data:', submitData);
+    return result.trim();
+  };
 
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        alert('No authentication token found. Please login again.');
+  // Handle decimal part
+  const integerPart = Math.floor(num);
+  const decimalPart = Math.round((num - integerPart) * 100);
+
+  let words = convert(integerPart) + ' Taka';
+
+  if (decimalPart > 0) {
+    words += ' and ' + convertBelow1000(decimalPart) + ' Poisha';
+  }
+
+  return words + ' Only';
+};
+
+// Function to load and add logo
+const loadAndAddLogo = async (doc) => {
+  return new Promise((resolve, reject) => {
+    const logoImg = new Image();
+    logoImg.crossOrigin = 'anonymous';
+
+    // Try multiple possible logo paths
+    const possiblePaths = [
+      '/VQS.jpeg',
+      '/logo.jpeg',
+      '/logo.jpg',
+      '/vqs-logo.jpeg',
+      '/assets/VQS.jpeg',
+      '/images/logo.jpeg',
+      `${window.location.origin}/VQS.jpeg`
+    ];
+
+    let currentPathIndex = 0;
+
+    const tryNextPath = () => {
+      if (currentPathIndex >= possiblePaths.length) {
+        reject(new Error('Logo not found in any path'));
         return;
       }
 
-      let response;
-      if (invoice && invoice._id) {
-        response = await axios.put(
-          `${API_BASE_URL}/invoices/${invoice._id}`,
-          submitData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        alert('✅ Invoice updated successfully!');
-      } else {
-        response = await axios.post(
-          `${API_BASE_URL}/invoices`,
-          submitData,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-        alert('✅ Invoice created successfully!');
-      }
+      const logoUrl = possiblePaths[currentPathIndex];
+      console.log(`Trying to load logo from: ${logoUrl}`);
+      logoImg.src = logoUrl;
 
-      console.log('Server response:', response.data);
-      onBack();
-
-    } catch (error) {
-      console.error('Error saving invoice:', error);
-
-      if (error.response) {
-        console.error('Error response data:', error.response.data);
-        console.error('Error status:', error.response.status);
-
-        if (error.response.status === 400) {
-          alert(`Validation Error: ${error.response.data.error}`);
-        } else if (error.response.status === 401) {
-          alert('Authentication failed. Please login again.');
-        } else if (error.response.status === 404) {
-          alert('Invoice not found. It may have been deleted.');
-        } else {
-          alert(`Server Error: ${error.response.data.error || 'Unknown error'}`);
-        }
-      } else if (error.request) {
-        alert('Network error: Cannot connect to server. Please check if backend is running.');
-      } else {
-        alert(`Error: ${error.message}`);
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleGeneratePDF = () => {
-    const totals = calculateTotals();
-
-    const pdfData = {
-      invoiceNumber: formData.invoiceNumber,
-      date: formData.date,
-      dueDate: formData.dueDate,
-      customerName: formData.customerName,
-      customerEmail: formData.customerEmail,
-      customerAddress: formData.customerAddress,
-      customerPhone: formData.customerPhone,
-      paymentStatus: formData.paymentStatus,
-
-      items: formData.items.map(item => ({
-        ...item,
-        quantity: parseFloat(item.quantity) || 0,
-        price: parseFloat(item.price) || 0,
-        total: parseFloat(item.total) || 0
-      })),
-
-      serviceCharge: {
-        type: formData.serviceCharge.type,
-        value: parseFloat(formData.serviceCharge.value) || 0,
-        amount: totals.serviceChargeAmount
-      },
-      vat: {
-        type: formData.vat.type,
-        value: parseFloat(formData.vat.value) || 0,
-        amount: totals.vatAmount
-      },
-
-      subtotal: totals.subtotal,
-      serviceChargeAmount: totals.serviceChargeAmount,
-      vatAmount: totals.vatAmount,
-      grandTotal: totals.grandTotal,
-      specialDiscount: parseFloat(formData.specialDiscount) || 0,
-      netTotal: totals.netTotal,
-
-      notes: formData.notes || ''
+      currentPathIndex++;
     };
 
-    console.log('PDF Generation Data:', pdfData);
-    generatePDF(pdfData);
-  };
+    logoImg.onload = () => {
+      try {
+        console.log(`Logo loaded successfully from: ${logoImg.src}`);
+        const circleCenterX = 30;
+        const circleCenterY = 18;
+        const circleRadius = 12;
+        const imageSize = circleRadius * 2;
+        const imageX = circleCenterX - circleRadius;
+        const imageY = circleCenterY - circleRadius;
 
-  const totals = calculateTotals();
+        // Draw white circle background
+        doc.setFillColor(255, 255, 255);
+        doc.circle(circleCenterX, circleCenterY, circleRadius, 'F');
 
-  return (
-    <div className="invoice-form-container">
-      {/* Header */}
-      <div className="form-header">
-        <div className="header-content">
-          <div className="header-title">
-            <h1>{invoice ? 'Edit Invoice' : 'Create New Invoice'}</h1>
-            <p>Manage your invoice details and generate professional PDFs</p>
-          </div>
-          <div className="invoice-preview">
-            <div className="preview-badge">
-              <span className="badge-label">Invoice #</span>
-              <span className="badge-value">{formData.invoiceNumber}</span>
-            </div>
-          </div>
-        </div>
-        <button onClick={onBack} className="back-btn">
-          ← Back to List
-        </button>
-      </div>
+        // Add image with clipping for circle
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = imageSize;
+        canvas.height = imageSize;
+        
+        // Create circular mask
+        ctx.beginPath();
+        ctx.arc(circleRadius, circleRadius, circleRadius, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        
+        // Draw image
+        ctx.drawImage(logoImg, 0, 0, imageSize, imageSize);
+        
+        // Add to PDF
+        doc.addImage(canvas.toDataURL('image/png'), 'PNG', imageX, imageY, imageSize, imageSize);
+        
+        resolve();
+      } catch (error) {
+        console.error('Error adding logo:', error);
+        reject(error);
+      }
+    };
 
-      <div className="form-content">
-        <form onSubmit={handleSubmit} className="invoice-form">
-          {/* Customer Information Section */}
-          <div className="form-section card">
-            <div className="section-header">
-              <h3 className="section-title">
-                <span className="section-icon">👤</span>
-                Customer Information
-              </h3>
-              <div className="section-badge">Required</div>
-            </div>
+    logoImg.onerror = () => {
+      console.warn(`Logo not found at current path, trying next...`);
+      tryNextPath();
+    };
 
-            <div className="form-grid">
-              <div className="form-group">
-                <label className="form-label">
-                  Invoice Number *
-                  <span className="label-hint">Unique identifier</span>
-                </label>
-                <input
-                  type="text"
-                  name="invoiceNumber"
-                  value={formData.invoiceNumber}
-                  onChange={handleInputChange}
-                  required
-                  className="form-input"
-                  placeholder="INV-2024-001"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Invoice Date *
-                  <span className="label-hint">Date of issue</span>
-                </label>
-                <input
-                  type="date"
-                  name="date"
-                  value={formData.date}
-                  onChange={handleInputChange}
-                  required
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Due Date *
-                  <span className="label-hint">Payment deadline</span>
-                </label>
-                <input
-                  type="date"
-                  name="dueDate"
-                  value={formData.dueDate}
-                  onChange={handleInputChange}
-                  required
-                  className="form-input"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Payment Status
-                  <span className="label-hint">Current payment state</span>
-                </label>
-                <select
-                  name="paymentStatus"
-                  value={formData.paymentStatus}
-                  onChange={handleInputChange}
-                  className={`form-input status-select status-${formData.paymentStatus}`}
-                >
-                  <option value="pending" className="status-pending">⏳ Pending</option>
-                  <option value="paid" className="status-paid">✅ Paid</option>
-                  <option value="overdue" className="status-overdue">⚠️ Overdue</option>
-                </select>
-              </div>
-
-              <div className="form-group full-width">
-                <label className="form-label">
-                  Customer Name *
-                  <span className="label-hint">Full name or company name</span>
-                </label>
-                <input
-                  type="text"
-                  name="customerName"
-                  value={formData.customerName}
-                  onChange={handleInputChange}
-                  required
-                  className="form-input"
-                  placeholder="Enter customer full name"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Customer Email
-                  <span className="label-hint">Email address (optional)</span>
-                </label>
-                <input
-                  type="email"
-                  name="customerEmail"
-                  value={formData.customerEmail}
-                  onChange={handleInputChange}
-                  className="form-input"
-                  placeholder="customer@example.com"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">
-                  Customer Phone
-                  <span className="label-hint">Contact number</span>
-                </label>
-                <input
-                  type="text"
-                  name="customerPhone"
-                  value={formData.customerPhone}
-                  onChange={handleInputChange}
-                  className="form-input"
-                  placeholder="+8801XXXXXXXXX"
-                />
-              </div>
-
-              <div className="form-group full-width">
-                <label className="form-label">
-                  Customer Address
-                  <span className="label-hint">Full billing address</span>
-                </label>
-                <input
-                  type="text"
-                  name="customerAddress"
-                  value={formData.customerAddress}
-                  onChange={handleInputChange}
-                  className="form-input"
-                  placeholder="Street, City, Postal Code"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Items Section */}
-          <div className="form-section card">
-            <div className="section-header">
-              <div className="section-title-group">
-                <h3 className="section-title">
-                  <span className="section-icon">📦</span>
-                  Items & Products
-                </h3>
-                <span className="items-count">{formData.items.length} items</span>
-              </div>
-              <button type="button" onClick={addItem} className="add-item-btn">
-                <span className="btn-icon">+</span>
-                Add Item
-              </button>
-            </div>
-
-            <div className="items-table-container">
-              <table className="items-table">
-                <thead>
-                  <tr>
-                    <th width="5%">#</th>
-                    <th width="30%">Product Description</th>
-                    <th width="12%">Unit</th>
-                    <th width="12%">Quantity</th>
-                    <th width="15%">Unit Price (৳)</th>
-                    <th width="15%">Total (৳)</th>
-                    <th width="11%">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {formData.items.map((item, index) => (
-                    <tr key={index} className="item-row">
-                      <td className="serial-number">{item.srNo}</td>
-                      <td>
-                        <input
-                          type="text"
-                          value={item.productName}
-                          onChange={(e) => handleItemChange(index, 'productName', e.target.value)}
-                          className="table-input"
-                          placeholder="Enter product name"
-                          required
-                        />
-                      </td>
-                      <td>
-                        <select
-                          value={item.measurement}
-                          onChange={(e) => handleItemChange(index, 'measurement', e.target.value)}
-                          className="table-input measurement-select"
-                        >
-                          <option value="CFT">CFT</option>
-                          <option value="PCS">PCS</option>
-                          <option value="SFT">SFT</option>
-                          <option value="KG">KG</option>
-                          <option value="LTR">LTR</option>
-                        </select>
-                      </td>
-                      <td>
-                        <div className="quantity-control">
-                       
-                          <input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => handleItemChange(index, 'quantity', parseFloat(e.target.value))}
-                            min="0"
-                            step="1"
-                            className="table-input number-input"
-                            required
-                          />
-                        
-                        </div>
-                      </td>
-                      <td>
-                        <div className="price-control">
-
-                          <div className="price-input-container">
-                            <span className="currency-symbol">৳</span>
-                            <input
-                              type="number"
-                              value={item.price}
-                              onChange={(e) => handleItemChange(index, 'price', parseFloat(e.target.value))}
-                              min="0"
-                              step="1"
-                              className="table-input number-input"
-                              required
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="total-cell">
-                        <div className="total-amount">
-                          ৳{item.total?.toLocaleString()}
-                        </div>
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          className="remove-btn"
-                          disabled={formData.items.length === 1}
-                          title="Remove item"
-                        >
-                          <span className="remove-icon">×</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Calculations Section */}
-          <div className="form-section card">
-            <div className="section-header">
-              <h3 className="section-title">
-                <span className="section-icon">🧮</span>
-                Calculations & Charges
-              </h3>
-              <div className="total-summary">
-                Net Total: <span className="net-total-amount">৳{totals.netTotal.toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="calculations-grid">
-              <div className="calc-row">
-                <span className="calc-label">Subtotal</span>
-                <span className="calc-value">৳{totals.subtotal.toLocaleString()}</span>
-              </div>
-
-              <div className="charge-row">
-                <div className="charge-controls">
-                  <span className="calc-label">Service Charge</span>
-                  <div className="charge-inputs">
-                    <select
-                      value={formData.serviceCharge.type}
-                      onChange={(e) => handleChargeChange('serviceCharge', 'type', e.target.value)}
-                      className="charge-select"
-                    >
-                      <option value="fixed">Fixed</option>
-                      <option value="percentage">Percentage</option>
-                    </select>
-                    <div className="charge-input-wrapper">
-                      <input
-                        type="number"
-                        value={formData.serviceCharge.value}
-                        onChange={(e) => handleChargeChange('serviceCharge', 'value', parseFloat(e.target.value))}
-                        min="0"
-                        step="0.01"
-                        className="charge-input"
-                        placeholder={formData.serviceCharge.type === 'percentage' ? '%' : 'Amount'}
-                      />
-                      {formData.serviceCharge.type === 'percentage' && (
-                        <span className="charge-symbol">%</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <span className="calc-value">৳{totals.serviceChargeAmount.toLocaleString()}</span>
-              </div>
-
-              <div className="charge-row">
-                <div className="charge-controls">
-                  <span className="calc-label">VAT</span>
-                  <div className="charge-inputs">
-                    <select
-                      value={formData.vat.type}
-                      onChange={(e) => handleChargeChange('vat', 'type', e.target.value)}
-                      className="charge-select"
-                    >
-                      <option value="fixed">Fixed</option>
-                      <option value="percentage">Percentage</option>
-                    </select>
-                    <div className="charge-input-wrapper">
-                      <input
-                        type="number"
-                        value={formData.vat.value}
-                        onChange={(e) => handleChargeChange('vat', 'value', parseFloat(e.target.value))}
-                        min="0"
-                        step="0.01"
-                        className="charge-input"
-                        placeholder={formData.vat.type === 'percentage' ? '%' : 'Amount'}
-                      />
-                      {formData.vat.type === 'percentage' && (
-                        <span className="charge-symbol">%</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <span className="calc-value">৳{totals.vatAmount.toLocaleString()}</span>
-              </div>
-
-              <div className="calc-row grand-total">
-                <span className="calc-label">Grand Total</span>
-                <span className="calc-value">৳{totals.grandTotal.toLocaleString()}</span>
-              </div>
-
-              <div className="charge-row discount-row">
-                <div className="charge-controls">
-                  <span className="calc-label">Special Discount</span>
-                  <div className="charge-inputs">
-                    <div className="charge-input-wrapper discount-input">
-                      <span className="currency-symbol">৳</span>
-                      <input
-                        type="number"
-                        value={formData.specialDiscount}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          specialDiscount: parseFloat(e.target.value)
-                        }))}
-                        min="0"
-                        step="1"
-                        className="charge-input"
-                        placeholder="Discount amount"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <span className="calc-value discount-value">-৳{formData.specialDiscount.toLocaleString()}</span>
-              </div>
-
-              <div className="calc-row net-total-row">
-                <span className="calc-label">Net Total</span>
-                <span className="calc-value net-total-value">৳{totals.netTotal.toLocaleString()}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Notes Section */}
-          <div className="form-section card">
-            <h3 className="section-title">
-              <span className="section-icon">📝</span>
-              Additional Notes
-            </h3>
-            <div className="notes-container">
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-                rows="3"
-                className="notes-textarea"
-                placeholder="Add any additional notes, terms, or special instructions for this invoice..."
-              />
-              <div className="notes-hint">
-                This will appear at the bottom of the generated PDF invoice.
-              </div>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="form-actions">
-            <button
-              type="button"
-              onClick={onBack}
-              className="btn btn-secondary"
-              disabled={isSubmitting}
-            >
-              <span className="btn-icon">←</span>
-              Cancel
-            </button>
-            <div className="action-buttons">
-              <button
-                type="button"
-                onClick={() => setShowPDFPreview(true)}
-                className="btn btn-info"
-                disabled={isSubmitting}
-              >
-                <span className="btn-icon">👁️</span>
-                Preview PDF
-              </button>
-              <button
-                type="button"
-                onClick={handleGeneratePDF}
-                className="btn btn-warning"
-                disabled={isSubmitting}
-              >
-                <span className="btn-icon">📄</span>
-                Generate PDF
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <span className="btn-spinner"></span>
-                    {invoice ? 'Updating...' : 'Creating...'}
-                  </>
-                ) : (
-                  <>
-                    <span className="btn-icon">{invoice ? '💾' : '✨'}</span>
-                    {invoice ? 'Update Invoice' : 'Create Invoice'}
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
-
-      {/* PDF Preview Modal */}
-      {showPDFPreview && (
-        <div className="pdf-preview-modal">
-          <div className="pdf-preview-content">
-            <div className="pdf-preview-header">
-              <h3>PDF Preview</h3>
-              <button
-                onClick={() => setShowPDFPreview(false)}
-                className="close-btn"
-              >
-                ×
-              </button>
-            </div>
-            <div className="pdf-preview-body">
-              <div className="preview-placeholder">
-                <div className="preview-icon">📄</div>
-                <h4>Invoice Preview</h4>
-                <p>This is how your invoice will appear in the generated PDF.</p>
-              </div>
-              <div className="preview-summary">
-                <div className="preview-item">
-                  <span>Invoice #:</span>
-                  <strong>{formData.invoiceNumber}</strong>
-                </div>
-                <div className="preview-item">
-                  <span>Customer:</span>
-                  <strong>{formData.customerName}</strong>
-                </div>
-                <div className="preview-item">
-                  <span>Email:</span>
-                  <strong>{formData.customerEmail || 'N/A'}</strong>
-                </div>
-                <div className="preview-item">
-                  <span>Subtotal:</span>
-                  <strong>৳{totals.subtotal.toLocaleString()}</strong>
-                </div>
-                <div className="preview-item">
-                  <span>Service Charge:</span>
-                  <strong>৳{totals.serviceChargeAmount.toLocaleString()}</strong>
-                </div>
-                <div className="preview-item">
-                  <span>VAT:</span>
-                  <strong>৳{totals.vatAmount.toLocaleString()}</strong>
-                </div>
-                <div className="preview-item">
-                  <span>Discount:</span>
-                  <strong>-৳{formData.specialDiscount.toLocaleString()}</strong>
-                </div>
-                <div className="preview-item total">
-                  <span>Net Total:</span>
-                  <strong>৳{totals.netTotal.toLocaleString()}</strong>
-                </div>
-              </div>
-              <div className="preview-actions">
-                <button
-                  onClick={handleGeneratePDF}
-                  className="btn btn-primary"
-                >
-                  <span className="btn-icon">⬇️</span>
-                  Download PDF
-                </button>
-                <button
-                  onClick={() => setShowPDFPreview(false)}
-                  className="btn btn-secondary"
-                >
-                  Close Preview
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+    // Start trying paths
+    tryNextPath();
+  });
 };
 
-export default InvoiceForm;
+// Fallback function for text logo
+const addTextLogo = (doc) => {
+  const circleCenterX = 30;
+  const circleCenterY = 18;
+  const circleRadius = 12;
+  
+  // Draw circle with border
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(180, 180, 180);
+  doc.setLineWidth(0.5);
+  doc.circle(circleCenterX, circleCenterY, circleRadius, 'FD');
+  
+  // Add VQS text in circle
+  doc.setFontSize(14);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(60, 60, 60);
+  doc.text('VQS', circleCenterX, circleCenterY + 2, { align: 'center' });
+};
