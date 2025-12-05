@@ -24,7 +24,7 @@ const Login = ({ onLogin }) => {
 
   const checkAdminStatus = async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}api/auth/check-admin`);
+      const res = await axios.get(`${API_BASE_URL}/api/auth/check-admin`);
       setAdminExists(res.data.adminExists);
       
       // If no admin exists, show registration form
@@ -56,7 +56,7 @@ const Login = ({ onLogin }) => {
     setError('');
 
     try {
-      const res = await axios.post(`${API_BASE_URL}api/auth/login`, {
+      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         username: formData.username,
         password: formData.password
       }, {
@@ -107,7 +107,7 @@ const Login = ({ onLogin }) => {
     setError('');
 
     try {
-      const res = await axios.post(`${API_BASE_URL}api/auth/register`, {
+      const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
         username: formData.username,
         password: formData.password,
         name: formData.name || formData.username,
@@ -115,7 +115,7 @@ const Login = ({ onLogin }) => {
       });
 
       // Auto login after successful registration
-      const loginRes = await axios.post(`${API_BASE_URL}api/auth/login`, {
+      const loginRes = await axios.post(`${API_BASE_URL}/api/auth/login`, {
         username: formData.username,
         password: formData.password
       });
