@@ -505,78 +505,106 @@ const convertToWords = (num) => {
 
 // Function to load and add logo - 24x24 square, no circle
 const loadAndAddLogo = async (doc) => {
-  return new Promise((resolve) => {
+  return new Promise(async (resolve) => {
     try {
-      const img = new Image();
-      
       // Try multiple possible logo paths
-      const logoPath = '/VQS.jpeg';
-      console.log('Loading logo from:', logoPath);
+      const possiblePaths = [
+        '/VQS.jpeg',
+        '/logo.jpeg',
+        '/logo.jpg',
+        '/vqs-logo.jpeg',
+        '/vqs-logo.jpg',
+        '/VQS.jpg',
+        '/public/VQS.jpeg',
+        '/images/logo.jpeg',
+        '/assets/logo.jpeg'
+      ];
       
-      img.onload = () => {
+      let logoLoaded = false;
+      
+      for (const path of possiblePaths) {
         try {
-          // Logo position and size - 24x24 mm square
-          const logoWidth = 24; // mm
-          const logoHeight = 24; // mm
-          const logoX = 18; // Position from left
-          const logoY = 8; // Position from top
+          console.log(`Attempting to fetch logo from: ${path}`);
           
-          // Add logo image directly as square
-          doc.addImage(
-            img,
-            'JPEG', // or 'PNG' if your logo is PNG
-            logoX,
-            logoY,
-            logoWidth,
-            logoHeight
-          );
+          const response = await fetch(path, {
+            method: 'GET',
+            mode: 'cors',
+            cache: 'no-cache'
+          });
           
-          console.log('Logo added successfully as 24x24 square');
-          resolve();
-        } catch (error) {
-          console.warn('Error adding logo image:', error);
-          // No text fallback - just resolve
-          resolve();
-        }
-      };
-
-      img.onerror = (error) => {
-        console.warn('Could not load logo image:', error);
-        console.log('Trying alternative paths...');
-        
-        // Try alternative paths
-        const altPaths = [
-          '/logo.jpeg',
-          '/logo.jpg',
-          '/vqs-logo.jpeg',
-          '/vqs-logo.jpg',
-          '/VQS.jpg',
-          `${window.location.origin}/VQS.jpeg`
-        ];
-        
-        let currentPath = 0;
-        const tryAltPath = () => {
-          if (currentPath < altPaths.length) {
-            console.log(`Trying alternative: ${altPaths[currentPath]}`);
-            img.src = altPaths[currentPath];
-            currentPath++;
-          } else {
-            console.warn('No logo found');
-            // No text fallback - just resolve
-            resolve();
+          if (response.ok) {
+            const blob = await response.blob();
+            const imgUrl = URL.createObjectURL(blob);
+            
+            const img = new Image();
+            img.onload = () => {
+              try {
+                // Logo position and size - 24x24 mm square
+                const logoWidth = 24;
+                const logoHeight = 24;
+                const logoX = 18;
+                const logoY = 8;
+                
+                // Add logo
+                doc.addImage(
+                  img,
+                  'JPEG',
+                  logoX,
+                  logoY,
+                  logoWidth,
+                  logoHeight
+                );
+                
+                console.log(`✓ Logo loaded from: ${path}`);
+                URL.revokeObjectURL(imgUrl);
+                logoLoaded = true;
+                resolve();
+                return;
+              } catch (addError) {
+                console.warn(`Error adding logo from ${path}:`, addError);
+                URL.revokeObjectURL(imgUrl);
+              }
+            };
+            
+            img.onerror = () => {
+              URL.revokeObjectURL(imgUrl);
+            };
+            
+            img.src = imgUrl;
+            
+            // Wait for image to load or timeout
+            await new Promise((innerResolve) => {
+              const timeout = setTimeout(() => {
+                innerResolve();
+              }, 1000);
+              
+              img.onload = () => {
+                clearTimeout(timeout);
+                innerResolve();
+              };
+              
+              img.onerror = () => {
+                clearTimeout(timeout);
+                innerResolve();
+              };
+            });
+            
+            if (logoLoaded) break;
+            
           }
-        };
-        
-        img.onerror = tryAltPath;
-        tryAltPath();
-      };
-
-      // Start loading
-      img.src = logoPath;
+        } catch (fetchError) {
+          console.log(`Failed to fetch from ${path}:`, fetchError.message);
+          continue;
+        }
+      }
+      
+      if (!logoLoaded) {
+        console.warn('No logo found in any path');
+        resolve();
+      }
       
     } catch (error) {
       console.warn('Error in logo loading:', error);
-      // No text fallback - just resolve
       resolve();
     }
   });
