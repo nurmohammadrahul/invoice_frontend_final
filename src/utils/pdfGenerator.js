@@ -22,7 +22,7 @@ export const generatePDF = async (invoiceData) => {
   let yPos = margin;
 
   // =============== COMPANY HEADER ===============
-  doc.setFillColor(25, 55, 90);
+  doc.setFillColor(96, 96, 96); // Changed to extra light gray
   doc.rect(0, 0, pageWidth, 35, 'F');
 
   // Company logo with image
@@ -34,11 +34,11 @@ export const generatePDF = async (invoiceData) => {
   doc.text('VQS', pageWidth / 2, 18, { align: 'center' });
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(200, 220, 255);
+  doc.setTextColor(240, 240, 240);
   doc.text('VALUE | QUALITY | SERVICE', pageWidth / 2, 26, { align: 'center' });
 
   // =============== INVOICE HEADER (RIGHT SIDE OF COMPANY HEADER) ===============
-  // Invoice number and date on the right side of the blue header
+  // Invoice number and date on the right side of the gray header
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255, 0.9);
   const invoiceNumber = invoiceData.invoiceNumber || 'INV-0000';
@@ -50,7 +50,7 @@ export const generatePDF = async (invoiceData) => {
     })
     : new Date().toLocaleDateString('en-GB');
   
-  // Right-aligned invoice info in the blue header
+  // Right-aligned invoice info in the gray header
   const invoiceInfoX = pageWidth - margin - 10;
   const invoiceInfoY = 18;
   
@@ -86,7 +86,7 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   doc.text('BILL FROM', margin + 10, yPos + 8);
 
   doc.setFontSize(9);
@@ -114,7 +114,7 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   doc.text('BILL TO', toX + 10, yPos + 8);
 
   doc.setFontSize(9);
@@ -172,7 +172,7 @@ export const generatePDF = async (invoiceData) => {
       lineWidth: 0.1
     },
     headStyles: {
-      fillColor: [41, 128, 185],
+      fillColor: [96, 96, 96], // Changed to extra light gray
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 9,
@@ -219,7 +219,7 @@ export const generatePDF = async (invoiceData) => {
   // Due Date
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(80, 80, 80);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   
   const dueDateText = invoiceData.dueDate
     ? `Due Date: ${new Date(invoiceData.dueDate).toLocaleDateString('en-GB', {
@@ -236,13 +236,13 @@ export const generatePDF = async (invoiceData) => {
   let statusColor;
   switch (status.toUpperCase()) {
     case 'PAID':
-      statusColor = [46, 204, 113];
+      statusColor = [96, 96, 96]; // Changed to extra light gray
       break;
     case 'OVERDUE':
-      statusColor = [230, 126, 34];
+      statusColor = [96, 96, 96]; // Changed to extra light gray
       break;
     default:
-      statusColor = [231, 76, 60];
+      statusColor = [96, 96, 96]; // Changed to extra light gray
   }
   
   // Status badge
@@ -308,18 +308,18 @@ export const generatePDF = async (invoiceData) => {
 
     if (row.style === 'bold') {
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(50, 50, 50);
+      doc.setTextColor(96, 96, 96); // Changed to extra light gray
       doc.line(calcBoxX + 5, calcY - 3, calcBoxX + calcBoxWidth - 5, calcY - 3);
     } else if (row.style === 'discount') {
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(200, 50, 50);
+      doc.setTextColor(96, 96, 96); // Changed to extra light gray
     } else if (row.style === 'total') {
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(25, 55, 90);
+      doc.setTextColor(96, 96, 96); // Changed to extra light gray
       doc.line(calcBoxX + 5, calcY - 5, calcBoxX + calcBoxWidth - 5, calcY - 5);
     } else {
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(80, 80, 80);
+      doc.setTextColor(96, 96, 96); // Changed to extra light gray
     }
 
     doc.text(row.label, calcBoxX + 6, calcY);
@@ -340,12 +340,12 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(9);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(55, 55, 55);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   doc.text("Amount in Words:", margin, yPos);
 
   const wrappedWords = doc.splitTextToSize(words, pageWidth - margin * 2);
   doc.setFont('helvetica', 'normal');
-  doc.setTextColor(80, 80, 80);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   wrappedWords.forEach((line, i) => {
     doc.text(line, margin + 30, yPos + 0 + (i * 5));
   });
@@ -367,7 +367,7 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   doc.text('Supplier Signature', margin + 55, signatureY + 8, { align: 'center' });
 
   // Customer section
@@ -381,22 +381,9 @@ export const generatePDF = async (invoiceData) => {
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(44, 62, 80);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   doc.text('Customer Signature & Date', 155, signatureY + 8, { align: 'center' });
 
-  // =============== FOOTER ===============
-  const footerY = signatureY + 25;
-
-  // Thank you message
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'italic');
-  doc.setTextColor(41, 128, 185);
-  doc.text('Thank you for your business!', pageWidth / 2, footerY, { align: 'center' });
-
-  // Bottom border
-  doc.setDrawColor(41, 128, 185);
-  doc.setLineWidth(0.3);
-  doc.line(margin, footerY + 3, pageWidth - margin, footerY + 3);
 
   // =============== WATERMARK ===============
   doc.setFontSize(60);
@@ -405,6 +392,13 @@ export const generatePDF = async (invoiceData) => {
   doc.setGState(new doc.GState({ opacity: 0.1 }));
   doc.text('VQS', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
   doc.setGState(new doc.GState({ opacity: 1 }));
+
+  // =============== THANK YOU MESSAGE (MOVED TO VERY END) ===============
+  const thankYouY = pageHeight - 20;
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
+  doc.text('Thank you for your business with us!', pageWidth / 2, thankYouY, { align: 'center' });
 
   // =============== SAVE PDF ===============
   const fileName = `Invoice_${invoiceData.invoiceNumber || 'VQS'}_${new Date().toISOString().slice(0, 10)}.pdf`;
@@ -508,7 +502,6 @@ const loadAndAddLogo = async (doc) => {
         // Add image
         doc.addImage(logoImg, 'PNG', imageX, imageY, imageSize, imageSize);
         
-      
         console.log('Logo added successfully from:', logoUrl);
       } catch (error) {
         console.error('Error adding logo:', error);
@@ -526,12 +519,13 @@ const loadAndAddLogo = async (doc) => {
     logoImg.src = logoUrl;
   });
 };
+
 // Fallback function for text logo
 const addTextLogo = (doc) => {
   doc.setFillColor(255, 255, 255);
   doc.circle(30, 18, 12, 'F');
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(25, 55, 90);
+  doc.setTextColor(96, 96, 96); // Changed to extra light gray
   doc.text('VQS', 30, 21, { align: 'center' });
 };

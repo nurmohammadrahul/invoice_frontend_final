@@ -1,31 +1,38 @@
-//Login.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './Login.css'; // We'll create this CSS file
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://invoice-backend-final.vercel.app/api' ;
+import './Login.css';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://invoice-backend-final.vercel.app';
+
 const Login = ({ onLogin }) => {
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [formData, setFormData] = useState({
-    username: 'admin',
-    password: 'admin123'
+    username: '',
+    password: '',
+    confirmPassword: '',
+    name: '',
+    email: ''
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [initializing, setInitializing] = useState(false);
+  const [adminExists, setAdminExists] = useState(true);
 
-  // Initialize admin on component mount
+  // Check if admin exists on component mount
   useEffect(() => {
-    initializeAdmin();
+    checkAdminStatus();
   }, []);
 
-  const initializeAdmin = async () => {
+  const checkAdminStatus = async () => {
     try {
-      setInitializing(true);
-      const res = await axios.post(`${API_BASE_URL}/auth/init`);
-      console.log('✅ System ready:', res.data.message);
+      const res = await axios.get(`${API_BASE_URL}/api/auth/check-admin`);
+      setAdminExists(res.data.adminExists);
+      
+      // If no admin exists, show registration form
+      if (!res.data.adminExists) {
+        setIsRegisterMode(true);
+      }
     } catch (error) {
-      console.log('ℹ️ System check:', error.response?.data?.error || 'Admin exists');
-    } finally {
-      setInitializing(false);
+      console.log('Error checking admin status:', error.message);
     }
   };
 
@@ -34,11 +41,10 @@ const Login = ({ onLogin }) => {
       ...formData,
       [e.target.name]: e.target.value
     });
-    // Clear error when user starts typing
     if (error) setError('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
 
     if (!formData.username || !formData.password) {
@@ -50,7 +56,10 @@ const Login = ({ onLogin }) => {
     setError('');
 
     try {
-      const res = await axios.post(`${API_BASE_URL}/auth/login`, formData, {
+      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+        username: formData.username,
+        password: formData.password
+      }, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -58,13 +67,73 @@ const Login = ({ onLogin }) => {
 
       // Store auth data
       localStorage.setItem('token', res.data.token);
-      localStorage.setItem('username', res.data.username);
+      localStorage.setItem('userData', JSON.stringify({
+        username: res.data.username,
+        name: res.data.name,
+        role: res.data.role,
+        userId: res.data.userId
+      }));
 
       console.log('✅ Login successful');
-      onLogin();
+      onLogin(res.data);
     } catch (error) {
       setError(error.response?.data?.error || 'Login failed. Please check your credentials.');
       console.error('❌ Login error:', error.response?.data);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+
+    // Validation
+    if (!formData.username || !formData.password || !formData.confirmPassword) {
+      setError('All required fields must be filled');
+      return;
+    }
+    
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+    
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/auth/register`, {
+        username: formData.username,
+        password: formData.password,
+        name: formData.name || formData.username,
+        email: formData.email || `${formData.username}@vqs.com`
+      });
+
+      // Auto login after successful registration
+      const loginRes = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+        username: formData.username,
+        password: formData.password
+      });
+
+      // Store auth data
+      localStorage.setItem('token', loginRes.data.token);
+      localStorage.setItem('userData', JSON.stringify({
+        username: loginRes.data.username,
+        name: loginRes.data.name,
+        role: loginRes.data.role,
+        userId: loginRes.data.userId
+      }));
+
+      console.log('✅ Registration and login successful');
+      onLogin(loginRes.data);
+    } catch (error) {
+      setError(error.response?.data?.error || 'Registration failed. Please try again.');
+      console.error('❌ Registration error:', error.response?.data);
     } finally {
       setIsLoading(false);
     }
@@ -78,17 +147,14 @@ const Login = ({ onLogin }) => {
             <span className="logo-icon">🧾</span>
             <h1>VQS Invoice System</h1>
           </div>
-          <p className="welcome-text">Welcome back! Please sign in to your account.</p>
+          <p className="welcome-text">
+            {isRegisterMode 
+              ? 'Create Admin Account' 
+              : 'Welcome back! Please sign in to your account.'}
+          </p>
         </div>
 
-        <form className="login-form" onSubmit={handleSubmit}>
-          {initializing && (
-            <div className="status-message info">
-              <div className="spinner"></div>
-              Initializing system...
-            </div>
-          )}
-
+        <form className="login-form" onSubmit={isRegisterMode ? handleRegister : handleLogin}>
           {error && (
             <div className="status-message error">
               ⚠️ {error}
@@ -97,7 +163,7 @@ const Login = ({ onLogin }) => {
 
           <div className="form-group">
             <label htmlFor="username" className="form-label">
-              Username
+              Username *
             </label>
             <input
               id="username"
@@ -106,15 +172,51 @@ const Login = ({ onLogin }) => {
               value={formData.username}
               onChange={handleChange}
               className="form-input"
-              placeholder="Enter your username"
+              placeholder="Enter username"
               disabled={isLoading}
               required
             />
           </div>
 
+          {isRegisterMode && (
+            <>
+              <div className="form-group">
+                <label htmlFor="name" className="form-label">
+                  Full Name
+                </label>
+                <input
+                  id="name"
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="Your full name"
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="email" className="form-label">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="form-input"
+                  placeholder="your.email@example.com"
+                  disabled={isLoading}
+                />
+              </div>
+            </>
+          )}
+
           <div className="form-group">
             <label htmlFor="password" className="form-label">
-              Password
+              Password *
             </label>
             <input
               id="password"
@@ -123,26 +225,78 @@ const Login = ({ onLogin }) => {
               value={formData.password}
               onChange={handleChange}
               className="form-input"
-              placeholder="Enter your password"
+              placeholder={isRegisterMode ? "Minimum 6 characters" : "Enter password"}
               disabled={isLoading}
               required
             />
           </div>
 
+          {isRegisterMode && (
+            <div className="form-group">
+              <label htmlFor="confirmPassword" className="form-label">
+                Confirm Password *
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                name="confirmPassword"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                className="form-input"
+                placeholder="Confirm your password"
+                disabled={isLoading}
+                required
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             className={`login-btn ${isLoading ? 'loading' : ''}`}
-            disabled={isLoading || initializing}
+            disabled={isLoading}
           >
             {isLoading ? (
               <>
                 <div className="btn-spinner"></div>
-                Signing In...
+                {isRegisterMode ? 'Registering...' : 'Signing In...'}
               </>
             ) : (
-              'Sign In'
+              isRegisterMode ? 'Register Admin' : 'Sign In'
             )}
           </button>
+
+          <div className="switch-mode">
+            {isRegisterMode ? (
+              <p>
+                Already have an account?{' '}
+                <button 
+                  type="button"
+                  onClick={() => setIsRegisterMode(false)}
+                  className="switch-link"
+                  disabled={isLoading}
+                >
+                  Login here
+                </button>
+              </p>
+            ) : adminExists ? (
+              <p>
+                Need to register?{' '}
+                <button 
+                  type="button"
+                  onClick={() => setIsRegisterMode(true)}
+                  className="switch-link"
+                  disabled={isLoading}
+                >
+                  Register here
+                </button>
+              </p>
+            ) : (
+              <div className="admin-note">
+                <h4>No Admin Account Found</h4>
+                <p>Please register as the first admin user.</p>
+              </div>
+            )}
+          </div>
         </form>
       </div>
     </div>

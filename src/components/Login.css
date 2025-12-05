@@ -583,3 +583,177 @@
     gap: 16px;
   }
 }
+/* Add to Login.css */
+
+.register-prompt {
+  margin-top: 20px;
+  padding: 15px;
+  background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid #fc8181;
+  animation: slideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.register-prompt p {
+  color: #c53030;
+  font-weight: 600;
+  margin-bottom: 10px;
+  font-size: 0.9rem;
+}
+
+.register-link-btn {
+  background: #c53030;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: 100%;
+}
+
+.register-link-btn:hover {
+  background: #9b2c2c;
+  transform: translateY(-2px);
+}
+
+.switch-mode {
+  margin-top: 20px;
+  text-align: center;
+  padding-top: 15px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.switch-link {
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 5px;
+}
+
+.switch-link:hover {
+  color: #764ba2;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .register-prompt {
+    background: linear-gradient(135deg, #742a2a 0%, #9b2c2c 100%);
+    border-color: #f56565;
+  }
+  
+  .register-prompt p {
+    color: #fed7d7;
+  }
+  
+  .register-link-btn {
+    background: #f56565;
+  }
+  
+  .register-link-btn:hover {
+    background: #e53e3e;
+  }
+  
+  .switch-link {
+    color: #90cdf4;
+  }
+  
+  .switch-link:hover {
+    color: #63b3ed;
+  }
+}
+/* Add these styles to Login.css */
+
+.switch-mode {
+  margin-top: 20px;
+  text-align: center;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.switch-mode p {
+  color: #718096;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.switch-link {
+  background: none;
+  border: none;
+  color: #667eea;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0;
+  margin-left: 5px;
+}
+
+.switch-link:hover:not(:disabled) {
+  color: #764ba2;
+}
+
+.switch-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-note {
+  margin-top: 15px;
+  padding: 15px;
+  background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+  border-radius: 12px;
+  border: 1px solid #fc8181;
+  text-align: center;
+}
+
+.admin-note h4 {
+  color: #c53030;
+  margin: 0 0 8px 0;
+  font-size: 0.95rem;
+}
+
+.admin-note p {
+  color: #718096;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .switch-mode {
+    border-top-color: #4a5568;
+  }
+  
+  .switch-mode p {
+    color: #cbd5e0;
+  }
+  
+  .switch-link {
+    color: #90cdf4;
+  }
+  
+  .switch-link:hover:not(:disabled) {
+    color: #63b3ed;
+  }
+  
+  .admin-note {
+    background: linear-gradient(135deg, #742a2a 0%, #9b2c2c 100%);
+    border-color: #f56565;
+  }
+  
+  .admin-note h4 {
+    color: #fed7d7;
+  }
+  
+  .admin-note p {
+    color: #cbd5e0;
+  }
+}
