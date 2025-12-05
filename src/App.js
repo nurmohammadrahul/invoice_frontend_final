@@ -10,9 +10,11 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState('list');
   const [selectedInvoice, setSelectedInvoice] = useState(null);
-  const [showLogin, setShowLogin] = useState(true);
+  const [showRegister, setShowRegister] = useState(false);
   const [userInfo, setUserInfo] = useState(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // Check if user is already logged in
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('userData');
@@ -20,33 +22,14 @@ function App() {
     if (token && userData) {
       setIsAuthenticated(true);
       setUserInfo(JSON.parse(userData));
-      
-      // Check if admin exists
-      checkAdminStatus();
-    } else {
-      checkAdminStatus();
     }
   }, []);
-
-  const checkAdminStatus = async () => {
-    try {
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'https://invoice-backend-final.vercel.app'}/api/auth/check-admin`);
-      const data = await response.json();
-      
-      // If no admin exists, show registration
-      if (!data.adminExists) {
-        setShowLogin(false);
-      }
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-    }
-  };
 
   const handleLogin = (userData) => {
     setIsAuthenticated(true);
     setUserInfo(userData);
     setCurrentView('list');
-    setShowLogin(true);
+    setShowRegister(false);
     
     localStorage.setItem('token', userData.token);
     localStorage.setItem('userData', JSON.stringify(userData));
@@ -64,7 +47,7 @@ function App() {
     setCurrentView('list');
     setSelectedInvoice(null);
     setUserInfo(null);
-    checkAdminStatus();
+    setShowRegister(false);
   };
 
   const handleEditInvoice = (invoice) => {
@@ -80,6 +63,8 @@ function App() {
   const handleBackToList = () => {
     setCurrentView('list');
     setSelectedInvoice(null);
+    // Trigger refresh of invoice list
+    setRefreshTrigger(prev => prev + 1);
   };
 
   const handlePasswordChangeSuccess = () => {
@@ -87,22 +72,24 @@ function App() {
     setCurrentView('list');
   };
 
+  // If not authenticated, show login/register
   if (!isAuthenticated) {
-    return showLogin ? (
-      <Login 
-        onLogin={handleLogin} 
-        onSwitchToRegister={() => setShowLogin(false)}
-      />
-    ) : (
+    return showRegister ? (
       <Register 
         onRegister={handleRegister} 
-        onSwitchToLogin={() => setShowLogin(true)}
+        onSwitchToLogin={() => setShowRegister(false)}
+      />
+    ) : (
+      <Login 
+        onLogin={handleLogin} 
+        onSwitchToRegister={() => setShowRegister(true)}
       />
     );
   }
 
   return (
     <div className="App">
+      {/* Header */}
       <header className="app-header">
         <div className="header-left">
           <h1>VQS Invoice System</h1>
@@ -120,35 +107,44 @@ function App() {
           >
             🔐 Change Password
           </button>
-          <button onClick={handleLogout} className="logout-btn">🚪 Logout</button>
+          <button onClick={handleLogout} className="logout-btn">
+            🚪 Logout
+          </button>
         </div>
       </header>
       
+      {/* Navigation */}
       <nav className="app-nav">
         <button 
           onClick={() => setCurrentView('list')} 
           className={`nav-btn ${currentView === 'list' ? 'active' : ''}`}
         >
-          📋 Invoices
+          📋 Invoice List
         </button>
         <button 
           onClick={handleNewInvoice}
           className={`nav-btn ${currentView === 'form' ? 'active' : ''}`}
         >
-          ➕ New Invoice
+          ➕ Create Invoice
         </button>
       </nav>
 
+      {/* Main Content */}
       <main className="app-main">
         {currentView === 'list' && (
-          <InvoiceList onEditInvoice={handleEditInvoice} />
+          <InvoiceList 
+            onEditInvoice={handleEditInvoice}
+            refreshTrigger={refreshTrigger}
+          />
         )}
+        
         {currentView === 'form' && (
           <InvoiceForm 
             invoice={selectedInvoice} 
             onBack={handleBackToList}
           />
         )}
+        
         {currentView === 'change-password' && (
           <ChangePassword 
             onSuccess={handlePasswordChangeSuccess}
@@ -156,6 +152,12 @@ function App() {
           />
         )}
       </main>
+
+      {/* Footer */}
+      <footer className="app-footer">
+        <p>© {new Date().getFullYear()} VQS Invoice System. All rights reserved.</p>
+        <p className="footer-version">Version 1.0.0</p>
+      </footer>
     </div>
   );
 }

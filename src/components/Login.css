@@ -826,3 +826,81 @@
   opacity: 0.8;
   cursor: not-allowed;
 }
+/* Add to Login.css */
+.admin-notice {
+  background-color: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 15px 0;
+  text-align: center;
+}
+
+.admin-notice strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.admin-notice p {
+  margin: 0;
+  font-size: 14px;
+}
+
+.admin-registration-prompt {
+  text-align: center;
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+}
+
+.no-admin-message {
+  color: #dc3545;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.register-link-btn {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+  width: 100%;
+}
+
+.register-link-btn:hover {
+  background: linear-gradient(135deg, #c82333 0%, #bd2130 100%);
+  transform: translateY(-1px);
+}
+
+.register-link-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.loading-state-small {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px;
+}
+
+.mini-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #4f46e5;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
