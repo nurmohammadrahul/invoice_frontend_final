@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import api from '../api/config';
-import './Register.css';
+import './Login.css';
 
-function Register({ onRegister, onSwitchToLogin }) {
+const Register = ({ onRegister, onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
     username: '',
     password: '',
@@ -11,97 +11,82 @@ function Register({ onRegister, onSwitchToLogin }) {
     email: ''
   });
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value
     });
-    setError('');
+    if (error) setError('');
   };
 
-  const handleSubmit = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    setError('');
-    
+
+    // Validation
     if (!formData.username || !formData.password) {
       setError('Username and password are required');
       return;
     }
-    
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       return;
     }
-    
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
 
-    setLoading(true);
+    setIsLoading(true);
+    setError('');
 
     try {
-      const response = await api.post('/auth/register', {
+      const res = await api.post('/auth/register', {
         username: formData.username,
         password: formData.password,
         name: formData.name || formData.username,
-        email: formData.email || `${formData.username}@vqs.com`
+        email: formData.email || ''
       });
 
-      setSuccess(true);
+      const { token, user } = res.data;
       
-      setTimeout(async () => {
-        try {
-          const loginResponse = await api.post('/auth/login', {
-            username: formData.username,
-            password: formData.password
-          });
+      localStorage.setItem('token', token);
+      localStorage.setItem('userData', JSON.stringify(user));
 
-          const { token, user } = loginResponse.data;
-          localStorage.setItem('token', token);
-          localStorage.setItem('userData', JSON.stringify(user));
-          onRegister({ token, user });
-        } catch (loginError) {
-          onSwitchToLogin();
-        }
-      }, 2000);
-      
-    } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed. Please try again.');
+      onRegister({ token, user });
+    } catch (error) {
+      if (error.response?.status === 400) {
+        setError(error.response?.data?.error || 'Registration failed');
+      } else if (error.code === 'ERR_NETWORK') {
+        setError('Cannot connect to server. Please check your connection.');
+      } else {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  if (success) {
-    return (
-      <div className="register-container">
-        <div className="register-card success">
-          <div className="success-icon">✅</div>
-          <h2>Registration Successful!</h2>
-          <p>Admin account created successfully.</p>
-          <p>Logging you in automatically...</p>
-          <div className="spinner"></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="register-container">
-      <div className="register-card">
-        <div className="register-header">
+    <div className="login-container">
+      <div className="login-card">
+        <div className="login-header">
           <div className="logo">
-            <span className="logo-icon">👑</span>
-            <h1>Admin Registration</h1>
+            <span className="logo-icon">🧾</span>
+            <h1>VQS Invoice System</h1>
           </div>
-          <p className="register-subtitle">Create your admin account</p>
+          <p className="welcome-text">
+            Create your admin account
+          </p>
+          <p className="sub-text">
+            This will create the first admin user for the system.
+          </p>
         </div>
 
-        <form className="register-form" onSubmit={handleSubmit}>
+        <form className="login-form" onSubmit={handleRegister}>
           {error && (
             <div className="status-message error">
               ⚠️ {error}
@@ -113,119 +98,117 @@ function Register({ onRegister, onSwitchToLogin }) {
               Username *
             </label>
             <input
-              type="text"
               id="username"
+              type="text"
               name="username"
               value={formData.username}
               onChange={handleChange}
               className="form-input"
-              placeholder="Choose a username"
+              placeholder="Enter username"
+              disabled={isLoading}
               required
-              disabled={loading}
+              autoFocus
             />
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="name" className="form-label">
               Full Name
             </label>
             <input
-              type="text"
               id="name"
+              type="text"
               name="name"
               value={formData.name}
               onChange={handleChange}
               className="form-input"
-              placeholder="Your full name"
-              disabled={loading}
+              placeholder="Enter your full name"
+              disabled={isLoading}
             />
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="email" className="form-label">
               Email
             </label>
             <input
-              type="email"
               id="email"
+              type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               className="form-input"
-              placeholder="your.email@example.com"
-              disabled={loading}
+              placeholder="Enter email address"
+              disabled={isLoading}
             />
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="password" className="form-label">
               Password *
             </label>
             <input
-              type="password"
               id="password"
+              type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               className="form-input"
-              placeholder="Minimum 6 characters"
+              placeholder="Enter password (min. 6 characters)"
+              disabled={isLoading}
               required
-              minLength="6"
-              disabled={loading}
             />
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="confirmPassword" className="form-label">
               Confirm Password *
             </label>
             <input
-              type="password"
               id="confirmPassword"
+              type="password"
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
               className="form-input"
-              placeholder="Confirm your password"
+              placeholder="Confirm password"
+              disabled={isLoading}
               required
-              disabled={loading}
             />
           </div>
 
           <button
             type="submit"
-            className={`register-btn ${loading ? 'loading' : ''}`}
-            disabled={loading}
+            className={`login-btn ${isLoading ? 'loading' : ''}`}
+            disabled={isLoading}
           >
-            {loading ? (
+            {isLoading ? (
               <>
                 <div className="btn-spinner"></div>
-                Registering...
+                Creating Account...
               </>
             ) : (
-              'Register Admin'
+              'Create Admin Account'
             )}
           </button>
 
-          <div className="switch-link">
-            <p>Already have an account? <button 
-              type="button" 
-              onClick={onSwitchToLogin}
-              className="link-btn"
-              disabled={loading}
-            >
-              Login here
-            </button></p>
-          </div>
-
-          <div className="admin-note">
-            <h4>Important Note:</h4>
-            <p>Only one admin account can be created. If an admin already exists, you must login instead.</p>
+          <div className="switch-mode">
+            <p className="register-link">
+              Already have an account?{' '}
+              <button 
+                type="button"
+                onClick={onSwitchToLogin}
+                className="switch-link"
+                disabled={isLoading}
+              >
+                Sign in here
+              </button>
+            </p>
           </div>
         </form>
       </div>
     </div>
   );
-}
+};
 
 export default Register;

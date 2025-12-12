@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import api from '../api/config';
 import './Login.css';
 
@@ -9,21 +9,6 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [adminExists, setAdminExists] = useState(null);
-
-  useEffect(() => {
-    checkAdminExists();
-  }, []);
-
-  const checkAdminExists = async () => {
-    try {
-      const res = await api.get('/auth/check-admin-exists');
-      setAdminExists(res.data.adminExists);
-    } catch (error) {
-      console.error('Error checking admin status:', error);
-      setAdminExists(true);
-    }
-  };
 
   const handleChange = (e) => {
     setFormData({
@@ -80,13 +65,6 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
           <p className="welcome-text">
             Welcome! Please sign in to your account.
           </p>
-          
-          {adminExists === false && (
-            <div className="info-message admin-notice">
-              <strong>No Admin Account Found</strong>
-              <p>Please register as the first administrator.</p>
-            </div>
-          )}
         </div>
 
         <form className="login-form" onSubmit={handleLogin}>
@@ -147,38 +125,17 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
           </button>
 
           <div className="switch-mode">
-            {adminExists === false ? (
-              <div className="admin-registration-prompt">
-                <p className="no-admin-message">
-                  ⚠️ No admin account exists
-                </p>
-                <button 
-                  type="button"
-                  onClick={onSwitchToRegister}
-                  className="register-link-btn"
-                  disabled={isLoading}
-                >
-                  Register as First Admin
-                </button>
-              </div>
-            ) : adminExists === true ? (
-              <p className="register-link">
-                Need to create an account?{' '}
-                <button 
-                  type="button"
-                  onClick={onSwitchToRegister}
-                  className="switch-link"
-                  disabled={isLoading}
-                >
-                  Register here
-                </button>
-              </p>
-            ) : (
-              <div className="loading-state-small">
-                <div className="mini-spinner"></div>
-                <p>Checking system...</p>
-              </div>
-            )}
+            <p className="register-link">
+              Need to create an account?{' '}
+              <button 
+                type="button"
+                onClick={onSwitchToRegister}
+                className="switch-link"
+                disabled={isLoading}
+              >
+                Register here
+              </button>
+            </p>
           </div>
         </form>
       </div>

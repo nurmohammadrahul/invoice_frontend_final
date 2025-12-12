@@ -4,6 +4,7 @@ import Register from './components/Register';
 import InvoiceList from './components/InvoiceList';
 import InvoiceForm from './components/InvoiceForm';
 import ChangePassword from './components/ChangePassword';
+import api from './api/config';
 import './App.css';
 
 function App() {
@@ -14,21 +15,57 @@ function App() {
   const [userInfo, setUserInfo] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
 
   useEffect(() => {
+    checkAuthentication();
+  }, []);
+
+  const checkAuthentication = async () => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('userData');
     
-    if (token && userData) {
-      setIsAuthenticated(true);
-      setUserInfo(JSON.parse(userData));
+    if (!token || !userData) {
+      setIsLoading(false);
+      return;
     }
-    setIsLoading(false);
-  }, []);
+
+    setIsCheckingAuth(true);
+    
+    try {
+      // Verify token is still valid by checking admin status
+      const response = await api.get('/auth/check-admin', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.data.isAdmin) {
+        setIsAuthenticated(true);
+        setUserInfo(JSON.parse(userData));
+      } else {
+        // Token is invalid or user is not admin
+        clearAuthData();
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      clearAuthData();
+    } finally {
+      setIsLoading(false);
+      setIsCheckingAuth(false);
+    }
+  };
+
+  const clearAuthData = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userData');
+    setIsAuthenticated(false);
+    setUserInfo(null);
+  };
 
   const handleLogin = (userData) => {
     setIsAuthenticated(true);
-    setUserInfo(userData);
+    setUserInfo(userData.user || userData);
     setCurrentView('list');
     setShowRegister(false);
     
@@ -41,12 +78,9 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userData');
-    setIsAuthenticated(false);
+    clearAuthData();
     setCurrentView('list');
     setSelectedInvoice(null);
-    setUserInfo(null);
     setShowRegister(false);
   };
 
@@ -71,30 +105,32 @@ function App() {
     setCurrentView('list');
   };
 
-  if (isLoading) {
-    return (
-      <div className="loading-fullscreen">
-        <div className="spinner"></div>
-        <p>Loading...</p>
-      </div>
-    );
-  }
+  const renderLoading = () => (
+    <div className="loading-fullscreen">
+      <div className="spinner"></div>
+      <p>{isCheckingAuth ? 'Checking authentication...' : 'Loading...'}</p>
+    </div>
+  );
 
-  if (!isAuthenticated) {
-    return showRegister ? (
-      <Register 
-        onRegister={handleRegister} 
-        onSwitchToLogin={() => setShowRegister(false)}
-      />
-    ) : (
+  const renderAuth = () => {
+    if (showRegister) {
+      return (
+        <Register 
+          onRegister={handleRegister} 
+          onSwitchToLogin={() => setShowRegister(false)}
+        />
+      );
+    }
+    
+    return (
       <Login 
         onLogin={handleLogin} 
         onSwitchToRegister={() => setShowRegister(true)}
       />
     );
-  }
+  };
 
-  return (
+  const renderAuthenticatedApp = () => (
     <div className="App">
       <header className="app-header">
         <div className="header-left">
@@ -102,19 +138,26 @@ function App() {
           {userInfo && (
             <div className="user-info">
               <span className="user-name">Welcome, {userInfo.name || userInfo.username}</span>
-              <span className="user-role">({userInfo.role})</span>
+              <span className="user-role badge">{userInfo.role}</span>
             </div>
           )}
         </div>
         <div className="header-right">
           <button 
             onClick={() => setCurrentView('change-password')} 
-            className="change-password-btn"
+            className="btn btn-secondary"
+            title="Change your password"
           >
-            🔐 Change Password
+            <span className="btn-icon">🔐</span>
+            Change Password
           </button>
-          <button onClick={handleLogout} className="logout-btn">
-            🚪 Logout
+          <button 
+            onClick={handleLogout} 
+            className="btn btn-danger"
+            title="Logout from the system"
+          >
+            <span className="btn-icon">🚪</span>
+            Logout
           </button>
         </div>
       </header>
@@ -124,13 +167,15 @@ function App() {
           onClick={() => setCurrentView('list')} 
           className={`nav-btn ${currentView === 'list' ? 'active' : ''}`}
         >
-          📋 Invoice List
+          <span className="nav-icon">📋</span>
+          Invoice List
         </button>
         <button 
           onClick={handleNewInvoice}
           className={`nav-btn ${currentView === 'form' ? 'active' : ''}`}
         >
-          ➕ Create Invoice
+          <span className="nav-icon">➕</span>
+          Create Invoice
         </button>
       </nav>
 
@@ -146,6 +191,7 @@ function App() {
           <InvoiceForm 
             invoice={selectedInvoice} 
             onBack={handleBackToList}
+            onSuccess={handleBackToList}
           />
         )}
         
@@ -158,6 +204,12 @@ function App() {
       </main>
     </div>
   );
+
+  if (isLoading || isCheckingAuth) {
+    return renderLoading();
+  }
+
+  return isAuthenticated ? renderAuthenticatedApp() : renderAuth();
 }
 
 export default App;
