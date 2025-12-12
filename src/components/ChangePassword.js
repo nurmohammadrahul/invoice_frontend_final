@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api/config';
 import './ChangePassword.css';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://invoice-backend-final.vercel.app';
 
 function ChangePassword({ onSuccess, onCancel }) {
   const [formData, setFormData] = useState({
@@ -26,7 +24,6 @@ function ChangePassword({ onSuccess, onCancel }) {
     e.preventDefault();
     setError('');
     
-    // Validation
     if (!formData.currentPassword || !formData.newPassword || !formData.confirmPassword) {
       setError('All fields are required');
       return;
@@ -50,15 +47,9 @@ function ChangePassword({ onSuccess, onCancel }) {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${API_BASE_URL}/api/auth/change-password`, {
+      await api.post('/auth/change-password', {
         currentPassword: formData.currentPassword,
         newPassword: formData.newPassword
-      }, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
       });
 
       setSuccess(true);

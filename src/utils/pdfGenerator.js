@@ -503,109 +503,85 @@ const convertToWords = (num) => {
   return words + ' Only';
 };
 
-// Function to load and add logo - 24x24 square, no circle
-const loadAndAddLogo = async (doc) => {
-  return new Promise(async (resolve) => {
+// Simplified logo loading function
+const loadAndAddLogo = (doc) => {
+  return new Promise((resolve) => {
     try {
-      // Try multiple possible logo paths
-      const possiblePaths = [
-        '/VQS.jpeg',
-        '/logo.jpeg',
-        '/logo.jpg',
-        '/vqs-logo.jpeg',
-        '/vqs-logo.jpg',
-        '/VQS.jpg',
-        '/public/VQS.jpeg',
-        '/images/logo.jpeg',
-        '/assets/logo.jpeg'
-      ];
-      
-      let logoLoaded = false;
-      
-      for (const path of possiblePaths) {
-        try {
-          console.log(`Attempting to fetch logo from: ${path}`);
-          
-          const response = await fetch(path, {
-            method: 'GET',
-            mode: 'cors',
-            cache: 'no-cache'
-          });
-          
-          if (response.ok) {
-            const blob = await response.blob();
-            const imgUrl = URL.createObjectURL(blob);
-            
-            const img = new Image();
-            img.onload = () => {
-              try {
-                // Logo position and size - 24x24 mm square
-                const logoWidth = 24;
-                const logoHeight = 24;
-                const logoX = 18;
-                const logoY = 8;
-                
-                // Add logo
-                doc.addImage(
-                  img,
-                  'JPEG',
-                  logoX,
-                  logoY,
-                  logoWidth,
-                  logoHeight
-                );
-                
-                console.log(`✓ Logo loaded from: ${path}`);
-                URL.revokeObjectURL(imgUrl);
-                logoLoaded = true;
-                resolve();
-                return;
-              } catch (addError) {
-                console.warn(`Error adding logo from ${path}:`, addError);
-                URL.revokeObjectURL(imgUrl);
-              }
-            };
-            
-            img.onerror = () => {
-              URL.revokeObjectURL(imgUrl);
-            };
-            
-            img.src = imgUrl;
-            
-            // Wait for image to load or timeout
-            await new Promise((innerResolve) => {
-              const timeout = setTimeout(() => {
-                innerResolve();
-              }, 1000);
-              
-              img.onload = () => {
-                clearTimeout(timeout);
-                innerResolve();
-              };
-              
-              img.onerror = () => {
-                clearTimeout(timeout);
-                innerResolve();
-              };
-            });
-            
-            if (logoLoaded) break;
-            
-          }
-        } catch (fetchError) {
-          console.log(`Failed to fetch from ${path}:`, fetchError.message);
-          continue;
-        }
-      }
-      
-      if (!logoLoaded) {
-        console.warn('No logo found in any path');
+      // Create a simple VQS logo if image doesn't load
+      const createFallbackLogo = () => {
+        // Draw a simple rectangle with VQS text as fallback
+        doc.setFillColor(240, 240, 240);
+        doc.rect(18, 8, 24, 24, 'F');
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(18, 8, 24, 24, 'S');
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(100, 100, 100);
+        doc.text('VQS', 30, 20, { align: 'center' });
+        
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'normal');
+        doc.text('LOGO', 30, 24, { align: 'center' });
+        
+        console.log('✓ Fallback logo created');
         resolve();
-      }
+      };
+
+      // Try to load the logo from public folder
+      const img = new Image();
+      
+      img.onload = () => {
+        try {
+          // Logo position and size - 24x24 mm square
+          const logoWidth = 24;
+          const logoHeight = 24;
+          const logoX = 18;
+          const logoY = 8;
+          
+          // Add logo
+          doc.addImage(
+            img,
+            'JPEG',
+            logoX,
+            logoY,
+            logoWidth,
+            logoHeight
+          );
+          
+          console.log('✓ Logo loaded successfully');
+          resolve();
+        } catch (addError) {
+          console.warn('Error adding logo:', addError);
+          createFallbackLogo();
+        }
+      };
+      
+      img.onerror = () => {
+        console.warn('Logo image failed to load');
+        createFallbackLogo();
+      };
+      
+      // Set a timeout in case image takes too long
+      const timeout = setTimeout(() => {
+        console.warn('Logo loading timeout');
+        createFallbackLogo();
+      }, 2000);
+      
+      // Clear timeout when image loads
+      const originalOnLoad = img.onload;
+      img.onload = () => {
+        clearTimeout(timeout);
+        originalOnLoad();
+      };
+      
+      // Load the logo from public folder
+      // Use your exact filename
+      img.src = '/vqs-logo.jpeg';
       
     } catch (error) {
       console.warn('Error in logo loading:', error);
-      resolve();
+      resolve(); // Resolve anyway to continue PDF generation
     }
   });
 };

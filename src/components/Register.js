@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api/config';
 import './Register.css';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://invoice-backend-final.vercel.app';
 
 function Register({ onRegister, onSwitchToLogin }) {
   const [formData, setFormData] = useState({
@@ -28,7 +26,6 @@ function Register({ onRegister, onSwitchToLogin }) {
     e.preventDefault();
     setError('');
     
-    // Validation
     if (!formData.username || !formData.password) {
       setError('Username and password are required');
       return;
@@ -47,7 +44,7 @@ function Register({ onRegister, onSwitchToLogin }) {
     setLoading(true);
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/auth/register`, {
+      const response = await api.post('/auth/register', {
         username: formData.username,
         password: formData.password,
         name: formData.name || formData.username,
@@ -56,26 +53,18 @@ function Register({ onRegister, onSwitchToLogin }) {
 
       setSuccess(true);
       
-      // Auto login after successful registration
       setTimeout(async () => {
         try {
-          const loginResponse = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+          const loginResponse = await api.post('/auth/login', {
             username: formData.username,
             password: formData.password
           });
 
-          // Store auth data
-          localStorage.setItem('token', loginResponse.data.token);
-          localStorage.setItem('userData', JSON.stringify({
-            username: loginResponse.data.username,
-            name: loginResponse.data.name,
-            role: loginResponse.data.role,
-            userId: loginResponse.data.userId
-          }));
-
-          onRegister(loginResponse.data);
+          const { token, user } = loginResponse.data;
+          localStorage.setItem('token', token);
+          localStorage.setItem('userData', JSON.stringify(user));
+          onRegister({ token, user });
         } catch (loginError) {
-          // If auto-login fails, go to login page
           onSwitchToLogin();
         }
       }, 2000);

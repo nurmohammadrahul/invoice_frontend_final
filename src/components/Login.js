@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../api/config';
 import './Login.css';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://invoice-backend-final.vercel.app';
 
 const Login = ({ onLogin, onSwitchToRegister }) => {
   const [formData, setFormData] = useState({
@@ -11,33 +9,19 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [adminExists, setAdminExists] = useState(null); // null = not checked yet
+  const [adminExists, setAdminExists] = useState(null);
 
-  // Check if admin exists on component mount
   useEffect(() => {
     checkAdminExists();
   }, []);
 
   const checkAdminExists = async () => {
     try {
-      console.log('🔍 Checking if admin exists...');
-      
-      const res = await axios.get(`${API_BASE_URL}/api/auth/check-admin-exists`);
-      console.log('Admin exists response:', res.data);
-      
+      const res = await api.get('/auth/check-admin-exists');
       setAdminExists(res.data.adminExists);
-      
     } catch (error) {
-      console.error('❌ Error checking admin status:', error.message);
-      console.error('Full error:', error);
-      
-      // If error, assume admin exists (safer for login)
+      console.error('Error checking admin status:', error);
       setAdminExists(true);
-      
-      // Show error only if it's not a network error
-      if (error.code !== 'ERR_NETWORK' && error.response?.status !== 500) {
-        setError('Cannot connect to server. Please try again later.');
-      }
     }
   };
 
@@ -61,41 +45,22 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
     setError('');
 
     try {
-      console.log('🔐 Attempting login for user:', formData.username);
-      
-      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+      const res = await api.post('/auth/login', {
         username: formData.username,
         password: formData.password
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
       });
 
-      console.log('✅ Login successful:', res.data);
-
-      // Store auth data
-      localStorage.setItem('token', res.data.token);
-      localStorage.setItem('userData', JSON.stringify({
-        username: res.data.username,
-        name: res.data.name,
-        role: res.data.role,
-        userId: res.data.userId
-      }));
-
-      onLogin(res.data);
-    } catch (error) {
-      console.error('❌ Login error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        code: error.code
-      });
+      const { token, user } = res.data;
       
+      localStorage.setItem('token', token);
+      localStorage.setItem('userData', JSON.stringify(user));
+
+      onLogin({ token, user });
+    } catch (error) {
       if (error.response?.status === 401 || error.response?.status === 400) {
-        setError(error.response?.data?.error || 'Invalid username or password. Please try again.');
+        setError(error.response?.data?.error || 'Invalid username or password');
       } else if (error.code === 'ERR_NETWORK') {
-        setError('Cannot connect to server. Please check your internet connection.');
+        setError('Cannot connect to server. Please check your connection.');
       } else {
         setError('Login failed. Please try again.');
       }
@@ -116,7 +81,6 @@ const Login = ({ onLogin, onSwitchToRegister }) => {
             Welcome! Please sign in to your account.
           </p>
           
-          {/* Show admin status message */}
           {adminExists === false && (
             <div className="info-message admin-notice">
               <strong>No Admin Account Found</strong>

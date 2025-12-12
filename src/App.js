@@ -6,8 +6,6 @@ import InvoiceForm from './components/InvoiceForm';
 import ChangePassword from './components/ChangePassword';
 import './App.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://invoice-backend-final.vercel.app';
-
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentView, setCurrentView] = useState('list');
@@ -17,7 +15,6 @@ function App() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check if user is already logged in
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('userData');
@@ -36,7 +33,7 @@ function App() {
     setShowRegister(false);
     
     localStorage.setItem('token', userData.token);
-    localStorage.setItem('userData', JSON.stringify(userData));
+    localStorage.setItem('userData', JSON.stringify(userData.user || userData));
   };
 
   const handleRegister = (userData) => {
@@ -104,7 +101,7 @@ function App() {
           <h1>VQS Invoice System</h1>
           {userInfo && (
             <div className="user-info">
-              <span className="user-name">Welcome,{userInfo.name || userInfo.username}</span>
+              <span className="user-name">Welcome, {userInfo.name || userInfo.username}</span>
               <span className="user-role">({userInfo.role})</span>
             </div>
           )}
